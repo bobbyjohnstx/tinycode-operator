@@ -213,6 +213,131 @@ def remove_scc_binding(name: str, namespace: str):
         log.warning("Could not remove SCC binding for %s: %s", name, exc)
 
 
+def check_vllm_tool_calling(namespace: str) -> list[dict]:
+    """
+    Probe vLLM services in the namespace for tool calling support.
+    Returns a list of warnings for services missing --enable-auto-tool-choice.
+    Runs entirely inside the cluster — no external network needed.
+    """
+    warnings = []
+    try:
+        services = core_v1.list_namespaced_service(namespace)
+    except Exception:
+        return warnings
+
+    TOOL_CALL_TEST = {
+        "model": "test",
+        "messages": [{"role": "user", "content": "hi"}],
+        "tools": [{"type": "function", "function": {
+            "name": "t", "description": "t",
+            "parameters": {"type": "object", "properties": {}}
+        }}],
+        "tool_choice": "auto",
+        "max_tokens": 1,
+    }
+
+    import urllib.request
+    import urllib.error
+    import json as json_mod
+
+    for svc in services.items:
+        cluster_ip = svc.spec.cluster_ip
+        if not cluster_ip or cluster_ip == "None":
+            continue
+        svc_name = svc.metadata.name
+        ports = [p.port for p in (svc.spec.ports or [])] or [8080, 8000, 80]
+
+        for port in ports:
+            models_url = f"http://{cluster_ip}:{port}/v1/models"
+            try:
+                req = urllib.request.Request(models_url, headers={"Accept": "application/json"})
+                with urllib.request.urlopen(req, timeout=2) as resp:
+                    data = json_mod.loads(resp.read())
+                if not data.get("data") or data["data"][0].get("owned_by") != "vllm":
+                    continue
+            except Exception:
+                continue
+
+            # Confirmed vLLM — now test tool calling
+            chat_url = f"http://{cluster_ip}:{port}/v1/chat/completions"
+            try:
+                body = json_mod.dumps(TOOL_CALL_TEST).encode()
+                req = urllib.request.Request(
+                    chat_url,
+                    data=body,
+                    headers={"Content-Type": "application/json"},
+                )
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    resp.read()
+                # No error — tool calling works
+                log.info("vLLM %s/%s port %d supports tool calling", namespace, svc_name, port)
+            except urllib.error.HTTPError as exc:
+                body_text = exc.read().decode("utf-8", errors="ignore")
+                if "enable-auto-tool-choice" in body_text:
+                    msg = (
+                        f"vLLM service {svc_name} (port {port}) does not support tool calling. "
+                        f"Add --enable-auto-tool-choice and --tool-call-parser to its vLLM args. "
+                        f"See docs/vllm-tool-calling.md"
+                    )
+                    log.warning(msg)
+                    warnings.append({"service": svc_name, "port": port, "message": msg})
+            except Exception:
+                pass
+            break
+
+    return warnings
+
+
+def set_status(name: str, namespace: str, phase: str, ready: bool, message: str,
+               url: str = "", tool_calling_warnings: list | None = None):
+    """Patch the TinycodeInstance status."""
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    conditions = [
+        {
+            "type": "Ready",
+            "status": "True" if ready else "False",
+            "reason": "ReconcileSuccess" if ready else "ReconcileError",
+            "message": message,
+            "lastTransitionTime": now,
+        }
+    ]
+    if tool_calling_warnings:
+        conditions.append({
+            "type": "ToolCallingWarning",
+            "status": "True",
+            "reason": "VllmToolCallingNotConfigured",
+            "message": "; ".join(w["message"] for w in tool_calling_warnings),
+            "lastTransitionTime": now,
+        })
+    else:
+        conditions.append({
+            "type": "ToolCallingWarning",
+            "status": "False",
+            "reason": "VllmToolCallingOK",
+            "message": "All vLLM services support tool calling",
+            "lastTransitionTime": now,
+        })
+
+    status_body = {
+        "status": {
+            "phase": phase,
+            "url": url,
+            "conditions": conditions,
+        }
+    }
+    try:
+        custom_api.patch_namespaced_custom_object_status(
+            group=GROUP,
+            version=VERSION,
+            namespace=namespace,
+            plural=PLURAL,
+            name=name,
+            body=status_body,
+        )
+    except Exception as exc:
+        log.warning("Failed to update status for %s/%s: %s", namespace, name, exc)
+
+
 def get_route_url(name: str, namespace: str) -> str:
     """Return the external URL of the tinycode Route, if it exists."""
     try:
@@ -232,37 +357,6 @@ def get_route_url(name: str, namespace: str) -> str:
         return f"{scheme}://{host}" if host else ""
     except Exception:
         return ""
-
-
-def set_status(name: str, namespace: str, phase: str, ready: bool, message: str, url: str = ""):
-    """Patch the TinycodeInstance status."""
-    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    status_body = {
-        "status": {
-            "phase": phase,
-            "url": url,
-            "conditions": [
-                {
-                    "type": "Ready",
-                    "status": "True" if ready else "False",
-                    "reason": "ReconcileSuccess" if ready else "ReconcileError",
-                    "message": message,
-                    "lastTransitionTime": now,
-                }
-            ],
-        }
-    }
-    try:
-        custom_api.patch_namespaced_custom_object_status(
-            group=GROUP,
-            version=VERSION,
-            namespace=namespace,
-            plural=PLURAL,
-            name=name,
-            body=status_body,
-        )
-    except Exception as exc:
-        log.warning("Failed to update status for %s/%s: %s", namespace, name, exc)
 
 
 # ── kopf handlers ─────────────────────────────────────────────────────────────
@@ -313,12 +407,22 @@ async def reconcile(
         set_status(name, namespace, "Failed", False, msg)
         raise kopf.TemporaryError(msg, delay=60)
 
-    # Step 3: Fetch Route URL and update status
+    # Step 3: Check vLLM tool calling in the namespace and any configured URLs
+    tc_warnings = await asyncio.get_event_loop().run_in_executor(
+        None, lambda: check_vllm_tool_calling(namespace)
+    )
+    if tc_warnings:
+        for w in tc_warnings:
+            logger.warning("Tool calling not configured: %s", w["message"])
+
+    # Step 4: Fetch Route URL and update status
     url = get_route_url(name, namespace)
     msg = f"TinycodeInstance {name} deployed successfully"
     if url:
         msg += f". URL: {url}"
-    set_status(name, namespace, "Running", True, msg, url=url)
+    if tc_warnings:
+        msg += ". WARNING: vLLM tool calling not configured — see status.conditions for details"
+    set_status(name, namespace, "Running", True, msg, url=url, tool_calling_warnings=tc_warnings)
     logger.info("Reconcile complete: %s", msg)
 
 
