@@ -50,9 +50,9 @@ spec:
               type: object
               properties:
                 image:
-                  description: Container image for tinycode. Defaults to quay.io/tinycode/server:latest.
+                  description: Container image for tinycode. Defaults to ghcr.io/bjohns/tiny-container:latest.
                   type: string
-                  default: "quay.io/tinycode/server:latest"
+                  default: "ghcr.io/bjohns/tiny-container:latest"
                 replicas:
                   description: Number of tinycode server replicas. Defaults to 1.
                   type: integer

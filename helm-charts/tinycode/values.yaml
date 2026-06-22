@@ -1,4 +1,4 @@
-image: quay.io/tinycode/server:latest
+image: ghcr.io/bjohns/tiny-container:latest
 replicas: 1
 
 resources:

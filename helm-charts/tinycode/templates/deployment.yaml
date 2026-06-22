@@ -21,18 +21,17 @@ spec:
         app.kubernetes.io/instance: {{ .Values.instanceName }}
         app.kubernetes.io/managed-by: tinycode-operator
       annotations:
-        # Force re-rollout when the password secret changes
         {{- if .Values.auth.passwordSecret }}
         checksum/secret: {{ .Values.auth.passwordSecret | sha256sum }}
         {{- end }}
     spec:
       serviceAccountName: {{ .Values.instanceName }}-tinycode
-      # OpenShift requires explicit runAsNonRoot. UID 1000 matches the
-      # tinycode container image's non-root user.
+      # UID 1001 / GID 0 matches ContainerFile (useradd -u 1001 -g 0).
+      # GID 0 with g=u permissions is the OpenShift arbitrary-UID pattern.
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1000
-        fsGroup: 1000
+        runAsUser: 1001
+        fsGroup: 0
         seccompProfile:
           type: RuntimeDefault
 
@@ -50,21 +49,15 @@ spec:
         - name: tinycode
           image: {{ .Values.image }}
           imagePullPolicy: IfNotPresent
-          command:
-            - bun
-            - dev
-            - serve
-            - --hostname
-            - "0.0.0.0"
+          # entrypoint.sh starts tinycode in web mode (entrypoint.sh:35)
+          # No command override — use the image's ENTRYPOINT
 
           ports:
             - name: http
-              containerPort: 4096
+              containerPort: 3000
               protocol: TCP
 
           env:
-            - name: TINYCODE_DATA_DIR
-              value: /data
             {{- if .Values.auth.passwordSecret }}
             - name: TINYCODE_SERVER_PASSWORD
               valueFrom:
@@ -85,40 +78,39 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
-            runAsUser: 1000
+            runAsUser: 1001
             capabilities:
               drop:
                 - ALL
-            {{- if .Values.shell.enabled }}
-            # Shell access requires additional capabilities. Only enabled when
-            # spec.shell.enabled=true AND the tinycode-shell SCC is bound.
             readOnlyRootFilesystem: false
-            {{- else }}
-            readOnlyRootFilesystem: false
-            {{- end }}
 
           volumeMounts:
+            # XDG_DATA_HOME — tinycode SQLite DB, session history (entrypoint.sh:74-76)
             - name: data
-              mountPath: /data
+              mountPath: /home/tinycode/.local/share/tinycode
+              subPath: data
+            # XDG_CONFIG_HOME — config.json, tinycode.jsonc (entrypoint.sh:74-76)
+            - name: data
+              mountPath: /home/tinycode/.config/tinycode
+              subPath: config
+            # /projects — user workspace files
             - name: projects
               mountPath: /projects
-            - name: tmp
-              mountPath: /tmp
 
           livenessProbe:
             httpGet:
-              path: /
+              path: /global/health
               port: http
-            initialDelaySeconds: 30
+            initialDelaySeconds: 15
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 3
 
           readinessProbe:
             httpGet:
-              path: /
+              path: /global/health
               port: http
-            initialDelaySeconds: 15
+            initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
@@ -139,5 +131,3 @@ spec:
           persistentVolumeClaim:
             claimName: {{ .Values.instanceName }}-projects
         {{- end }}
-        - name: tmp
-          emptyDir: {}

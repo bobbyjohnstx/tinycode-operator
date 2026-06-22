@@ -30,7 +30,7 @@ labels:
 
 runAsUser:
   type: MustRunAs
-  uid: 1000
+  uid: 1001
 
 seLinuxContext:
   type: MustRunAs
@@ -38,14 +38,14 @@ seLinuxContext:
 fsGroup:
   type: MustRunAs
   ranges:
-    - min: 1000
-      max: 1000
+    - min: 1001
+      max: 1001
 
 supplementalGroups:
   type: MustRunAs
   ranges:
-    - min: 1000
-      max: 1000
+    - min: 1001
+      max: 1001
 
 # hostPID required for nsenter-based shell execution
 allowHostDirVolumePlugin: false
