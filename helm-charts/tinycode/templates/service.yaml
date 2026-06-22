@@ -14,7 +14,7 @@ spec:
     app.kubernetes.io/instance: {{ .Values.instanceName }}
   ports:
     - name: http
-      port: 3000
+      port: 4096
       targetPort: http
       protocol: TCP
   type: ClusterIP
