@@ -258,6 +258,21 @@ def check_vllm_tool_calling(namespace: str) -> list[dict]:
             except Exception:
                 continue
 
+            # Check context window size — warn if too small for coding sessions
+            MIN_CONTEXT = 16384
+            for model_entry in data.get("data", []):
+                max_model_len = model_entry.get("max_model_len", 0)
+                if max_model_len and max_model_len < MIN_CONTEXT:
+                    msg = (
+                        f"vLLM service {svc_name} model {model_entry['id']} has "
+                        f"max_model_len={max_model_len} which is below the recommended "
+                        f"{MIN_CONTEXT} for coding sessions. "
+                        f"Add --kv-cache-dtype fp8 and --max-model-len 32768 to the "
+                        f"vLLM deployment args. See docs/rhoai-cluster-setup.md"
+                    )
+                    log.warning(msg)
+                    warnings.append({"service": svc_name, "port": port, "message": msg, "type": "context"})
+
             # Confirmed vLLM — now test tool calling
             chat_url = f"http://{cluster_ip}:{port}/v1/chat/completions"
             try:
@@ -303,18 +318,18 @@ def set_status(name: str, namespace: str, phase: str, ready: bool, message: str,
     ]
     if tool_calling_warnings:
         conditions.append({
-            "type": "ToolCallingWarning",
+            "type": "VllmWarning",
             "status": "True",
-            "reason": "VllmToolCallingNotConfigured",
+            "reason": "VllmNotFullyConfigured",
             "message": "; ".join(w["message"] for w in tool_calling_warnings),
             "lastTransitionTime": now,
         })
     else:
         conditions.append({
-            "type": "ToolCallingWarning",
+            "type": "VllmWarning",
             "status": "False",
-            "reason": "VllmToolCallingOK",
-            "message": "All vLLM services support tool calling",
+            "reason": "VllmOK",
+            "message": "All vLLM services are properly configured",
             "lastTransitionTime": now,
         })
 
