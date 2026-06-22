@@ -12,17 +12,14 @@ FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
 # Install helm
 ARG HELM_VERSION=v3.17.3
-RUN microdnf install -y curl tar gzip shadow-utils python3.11 && \
+RUN microdnf install -y tar gzip shadow-utils python3.11 && \
     curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
       -o /tmp/helm.tar.gz && \
     tar -xzf /tmp/helm.tar.gz -C /tmp && \
     install -m 755 /tmp/linux-amd64/helm /usr/local/bin/helm && \
     rm -rf /tmp/helm* && \
-    microdnf remove -y curl tar gzip shadow-utils && \
+    microdnf remove -y tar gzip shadow-utils && \
     microdnf clean all
-
-# Non-root user matching the operator SCC UID
-RUN useradd -u 1001 -r -g 0 -s /sbin/nologin operator
 
 WORKDIR /app
 
@@ -41,6 +38,7 @@ ENV PYTHONPATH=/app/deps
 ENV HELM_CHART_PATH=/helm-charts/tinycode
 ENV HOME=/tmp
 
-USER 1001
+# UID 1001 already exists in ubi-minimal (operator user)
+USER 1001:0
 
 ENTRYPOINT ["python3.11", "/app/main.py"]
