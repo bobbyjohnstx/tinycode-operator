@@ -54,7 +54,7 @@ spec:
 
           ports:
             - name: http
-              containerPort: 3000
+              containerPort: 4096
               protocol: TCP
 
           env:

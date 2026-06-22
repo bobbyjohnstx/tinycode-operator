@@ -17,12 +17,12 @@ The operator watches `TinycodeInstance` custom resources and reconciles them by:
 │ OpenShift Cluster                                        │
 │                                                          │
 │  tinycode-operator-system/                               │
-│  ├── Deployment: tinycode-operator-manager (UID 1000)   │
+│  ├── Deployment: tinycode-operator-manager (UID 1001)   │
 │  └── ServiceAccount: tinycode-operator-manager          │
 │                                                          │
 │  <user-namespace>/                                       │
 │  ├── TinycodeInstance CR (user creates)                  │
-│  ├── Deployment: <name>-tinycode  ──→ Pod (UID 1000)    │
+│  ├── Deployment: <name>-tinycode  ──→ Pod (UID 1001)    │
 │  ├── Service: <name>-tinycode                            │
 │  ├── Route: <name>-tinycode  ──→ https://<host>          │
 │  ├── PVC: <name>-data (1Gi)                              │
@@ -118,30 +118,35 @@ Three SCCs are installed, applied automatically based on `spec`:
 
 | SCC | When Used | hostPath | hostPID | Caps |
 |-----|-----------|----------|---------|------|
-| `tinycode-restricted` | Default | ✗ | ✗ | ALL dropped |
-| `tinycode-hostpath` | `spec.storage.hostPath` set | ✓ | ✗ | ALL dropped |
-| `tinycode-shell` | `spec.shell.enabled=true` | ✗ | ✓ | SYS_PTRACE only |
+| `tinycode-restricted` | Default | no | no | ALL dropped |
+| `tinycode-hostpath` | `spec.storage.hostPath` set | yes | no | ALL dropped |
+| `tinycode-shell` | `spec.shell.enabled=true` | no | yes | SYS_PTRACE only |
 
-All SCCs run as UID 1000 (non-root), with `allowPrivilegedContainer: false`.
+All SCCs run as UID 1001 (non-root), GID 0, with `allowPrivilegedContainer: false`.
 
 ## TinycodeInstance Spec Reference
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `spec.image` | string | `quay.io/tinycode/server:latest` | Container image |
+| `spec.image` | string | `ghcr.io/bjohns/tiny-container:latest` | Container image |
 | `spec.replicas` | integer | `1` | Number of pods (1–10) |
-| `spec.resources` | object | 200m/512Mi → 2/2Gi | CPU/memory limits |
-| `spec.storage.dataSize` | string | `1Gi` | PVC size for DB/config |
-| `spec.storage.projectsSize` | string | `10Gi` | PVC size for projects |
-| `spec.storage.storageClassName` | string | cluster default | StorageClass |
-| `spec.storage.hostPath.path` | string | — | Host path to mount at /projects |
-| `spec.storage.hostPath.readOnly` | bool | `false` | Read-only host mount |
+| `spec.resources.limits.cpu` | string | `2` | CPU limit |
+| `spec.resources.limits.memory` | string | `2Gi` | Memory limit |
+| `spec.resources.requests.cpu` | string | `200m` | CPU request |
+| `spec.resources.requests.memory` | string | `512Mi` | Memory request |
+| `spec.storage.dataSize` | string | `1Gi` | PVC size for SQLite DB and config |
+| `spec.storage.projectsSize` | string | `10Gi` | PVC size for project workspace |
+| `spec.storage.storageClassName` | string | cluster default | StorageClass for PVCs |
+| `spec.storage.hostPath.path` | string | — | Absolute host path to mount at `/projects` |
+| `spec.storage.hostPath.readOnly` | bool | `false` | Mount host path read-only |
 | `spec.hostname` | string | auto | Custom Route hostname |
-| `spec.tlsTermination` | string | `edge` | Route TLS: edge/passthrough/reencrypt |
-| `spec.ollama.enabled` | bool | `false` | Deploy Ollama sidecar |
-| `spec.ollama.host` | string | — | External Ollama URL |
-| `spec.auth.passwordSecret` | string | — | Secret with TINYCODE_SERVER_PASSWORD |
-| `spec.shell.enabled` | bool | `false` | Enable host shell access (hostPID) |
+| `spec.tlsTermination` | string | `edge` | Route TLS mode: `edge`, `passthrough`, or `reencrypt` |
+| `spec.ollama.enabled` | bool | `false` | Deploy an Ollama sidecar |
+| `spec.ollama.host` | string | — | External Ollama URL (when `enabled` is false) |
+| `spec.ollama.models` | array | — | Ollama model names to pre-pull on startup |
+| `spec.auth.passwordSecret` | string | — | Secret name containing `TINYCODE_SERVER_PASSWORD` |
+| `spec.shell.enabled` | bool | `false` | Enable host shell access (grants `hostPID`) |
+| `spec.shell.allowedCommands` | array | — | Restrict shell commands (future admission webhook enforcement) |
 | `spec.nodeSelector` | object | — | Node selection constraints |
 | `spec.tolerations` | array | — | Pod tolerations |
 
@@ -153,6 +158,8 @@ oc get tinycodeinstances -n tinycode-dev
 NAME          READY   URL                                   AGE
 my-tinycode   True    https://my-tinycode-tinycode-dev...   5m
 ```
+
+Status phases: `Pending` → `Deploying` → `Running` (or `Failed` / `Terminating`).
 
 ## Uninstall
 
@@ -167,6 +174,7 @@ tinycode-operator/
 ├── Dockerfile                        # Operator container image
 ├── Makefile                          # Build/install targets
 ├── README.md
+├── CONTAINER.md                      # Container interface contract
 ├── operator/
 │   ├── main.py                       # Operator controller (kopf)
 │   └── requirements.txt
@@ -193,3 +201,10 @@ tinycode-operator/
     ├── uninstall.sh                  # Cluster uninstall script
     └── build-push.sh                 # Image build/push script
 ```
+
+## Ecosystem
+
+| Project | Description | Repository |
+|---------|-------------|------------|
+| [tinycode](https://github.com/bobbyjohnstx/tinycode) | Core AI coding assistant — server, TUI, web UI | `github.com/bobbyjohnstx/tinycode` |
+| [tiny-container](https://github.com/bobbyjohnstx/tiny-container) | Container image packaging tinycode + oh-my-tiny | `github.com/bobbyjohnstx/tiny-container` |
