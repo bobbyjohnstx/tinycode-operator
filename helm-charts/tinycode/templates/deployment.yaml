@@ -47,7 +47,7 @@ spec:
       containers:
         - name: tinycode
           image: {{ .Values.image }}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           # entrypoint.sh starts tinycode in web mode (entrypoint.sh:35)
           # No command override — use the image's ENTRYPOINT
 
