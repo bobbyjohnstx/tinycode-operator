@@ -70,6 +70,19 @@ spec:
             {{- end }}
             - name: TINYCODE_DISABLE_LSP_DOWNLOAD
               value: "1"
+            {{- if .Values.clusterAdmin.enabled }}
+            - name: KUBECONFIG
+              value: /home/tinycode/.kube/config
+            - name: TINYCODE_CLUSTER_ADMIN
+              value: "true"
+            - name: TINYCODE_OC_VERSION
+              value: {{ .Values.clusterAdmin.ocVersion | quote }}
+            - name: TINYCODE_CONFIG_CONTENT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.instanceName }}-tinycode-cluster-admin
+                  key: config.json
+            {{- end }}
 
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
@@ -94,11 +107,17 @@ spec:
             # /projects — user workspace files
             - name: projects
               mountPath: /projects
+            {{- if .Values.clusterAdmin.enabled }}
+            - name: kubeconfig-vol
+              mountPath: /home/tinycode/.kube/config
+              subPath: {{ .Values.clusterAdmin.kubeconfigSecretKey }}
+              readOnly: true
+            {{- end }}
 
           livenessProbe:
             tcpSocket:
               port: http
-            initialDelaySeconds: 15
+            initialDelaySeconds: {{ if .Values.clusterAdmin.enabled }}90{{ else }}15{{ end }}
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 3
@@ -106,7 +125,7 @@ spec:
           readinessProbe:
             tcpSocket:
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: {{ if .Values.clusterAdmin.enabled }}60{{ else }}5{{ end }}
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
@@ -126,4 +145,10 @@ spec:
         - name: projects
           persistentVolumeClaim:
             claimName: {{ .Values.instanceName }}-projects
+        {{- end }}
+        {{- if .Values.clusterAdmin.enabled }}
+        - name: kubeconfig-vol
+          secret:
+            secretName: {{ .Values.clusterAdmin.kubeconfigSecretName }}
+            defaultMode: 0400
         {{- end }}

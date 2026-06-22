@@ -188,6 +188,28 @@ spec:
                       type: array
                       items:
                         type: string
+                clusterAdmin:
+                  description: |
+                    OpenShift/Kubernetes cluster management configuration. When enabled, mounts a
+                    kubeconfig Secret and downloads the oc CLI at startup so the cluster-admin agent
+                    can interact with the cluster. v2 will add serviceAccount mode (reserved field).
+                  type: object
+                  properties:
+                    enabled:
+                      description: Enable cluster management mode. Downloads the oc CLI and mounts the kubeconfig.
+                      type: boolean
+                      default: false
+                    kubeconfigSecretName:
+                      description: Name of a Secret in the same namespace containing a kubeconfig file. Required when enabled is true.
+                      type: string
+                    kubeconfigSecretKey:
+                      description: Key within the Secret containing the kubeconfig. Defaults to "kubeconfig".
+                      type: string
+                      default: "kubeconfig"
+                    ocVersion:
+                      description: oc CLI version to download. Defaults to "stable". Use a specific version like "4.17" for reproducibility.
+                      type: string
+                      default: "stable"
             status:
               description: TinycodeInstanceStatus defines the observed state.
               type: object

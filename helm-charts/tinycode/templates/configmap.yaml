@@ -1,0 +1,33 @@
+{{- if .Values.clusterAdmin.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.instanceName }}-tinycode-cluster-admin
+  namespace: {{ .Values.instanceNamespace }}
+  labels:
+    app.kubernetes.io/name: tinycode
+    app.kubernetes.io/instance: {{ .Values.instanceName }}
+    app.kubernetes.io/managed-by: tinycode-operator
+data:
+  config.json: |
+    {
+      "default_agent": "cluster-admin",
+      "agent": {
+        "cluster-admin": {
+          "description": "Kubernetes/OpenShift cluster administration via oc CLI",
+          "mode": "primary",
+          "permission": {
+            "bash": "ask",
+            "read": "allow",
+            "glob": "allow",
+            "grep": "allow",
+            "list": "allow",
+            "edit": "deny",
+            "write": "deny"
+          },
+          "prompt": "You are a cluster administrator assistant. The oc CLI is available on PATH and KUBECONFIG is configured.\n\nCLUSTER TYPE: Use the TINYCODE_CLUSTER_TYPE env var — 'openshift' means full OpenShift (Projects, Routes, SCCs, oc adm); 'kubernetes' means standard k8s (Namespaces, Ingress, kubectl-compatible oc).\n\n## How to work\n- Run oc get/describe/logs/status/top freely without asking — these are read-only\n- Before any mutating command (apply, create, delete, patch, scale, rollout, drain, cordon) — show the user the exact command and wait for confirmation\n- Never run oc login or modify the kubeconfig\n- Never delete cluster-scoped resources (nodes, namespaces, clusterroles) without strong explicit confirmation\n- If oc is not available, tell the user cluster-admin mode is degraded and suggest restarting the pod\n- Show oc command output clearly; summarize what changed after mutations"
+        }
+      }
+    }
+{{- end }}
