@@ -158,53 +158,59 @@ def helm_release_exists(release: str, namespace: str) -> bool:
 
 def ensure_scc_binding(service_account: str, namespace: str, scc_name: str):
     """
-    Bind the appropriate tinycode SCC to the instance's ServiceAccount
-    via a cluster-scoped RoleBinding that grants 'use' on the SCC.
-    """
-    binding_name = f"tinycode-{namespace}-{service_account}-scc"
-    try:
-        rbac_v1.read_cluster_role_binding(binding_name)
-        log.debug("SCC binding %s already exists", binding_name)
-        return
-    except kubernetes.client.exceptions.ApiException as exc:
-        if exc.status != 404:
-            raise
+    Bind the appropriate tinycode SCC to the instance's ServiceAccount by
+    patching the SCC's users list directly — equivalent to:
+      oc adm policy add-scc-to-user <scc> system:serviceaccount:<ns>:<sa>
 
-    # Create the binding
-    binding = kubernetes.client.V1ClusterRoleBinding(
-        metadata=kubernetes.client.V1ObjectMeta(
-            name=binding_name,
-            labels={
-                "app.kubernetes.io/managed-by": "tinycode-operator",
-                "tinycode.dev/namespace": namespace,
-                "tinycode.dev/instance": service_account,
-            },
-        ),
-        role_ref=kubernetes.client.V1RoleRef(
-            api_group="rbac.authorization.k8s.io",
-            kind="ClusterRole",
-            name=f"system:openshift:scc:{scc_name}",
-        ),
-        subjects=[
-            kubernetes.client.V1Subject(
-                kind="ServiceAccount",
-                name=f"{service_account}-tinycode",
-                namespace=namespace,
-            )
-        ],
+    Custom SCCs in OpenShift do not get an auto-generated system:openshift:scc:*
+    ClusterRole, so patching the SCC users field is the correct approach.
+    """
+    sa_name = f"{service_account}-tinycode"
+    sa_ref = f"system:serviceaccount:{namespace}:{sa_name}"
+
+    dyn_client = kubernetes.dynamic.DynamicClient(kubernetes.client.ApiClient())
+    scc_api = dyn_client.resources.get(
+        api_version="security.openshift.io/v1",
+        kind="SecurityContextConstraints",
     )
-    rbac_v1.create_cluster_role_binding(binding)
-    log.info("Created SCC binding %s → %s for %s/%s", binding_name, scc_name, namespace, service_account)
+    scc = scc_api.get(name=scc_name)
+    users = list(scc.users or [])
+    if sa_ref in users:
+        log.debug("SCC %s already includes %s", scc_name, sa_ref)
+        return
+
+    users.append(sa_ref)
+    scc_api.patch(
+        name=scc_name,
+        body={"users": users},
+        content_type="application/merge-patch+json",
+    )
+    log.info("Added %s to SCC %s users", sa_ref, scc_name)
 
 
 def remove_scc_binding(name: str, namespace: str):
-    binding_name = f"tinycode-{namespace}-{name}-scc"
+    """Remove the SA from all tinycode SCCs on instance deletion."""
+    sa_ref = f"system:serviceaccount:{namespace}:{name}-tinycode"
     try:
-        rbac_v1.delete_cluster_role_binding(binding_name)
-        log.info("Deleted SCC binding %s", binding_name)
-    except kubernetes.client.exceptions.ApiException as exc:
-        if exc.status != 404:
-            log.warning("Could not delete SCC binding %s: %s", binding_name, exc)
+        dyn_client = kubernetes.dynamic.DynamicClient(kubernetes.client.ApiClient())
+        scc_api = dyn_client.resources.get(
+            api_version="security.openshift.io/v1",
+            kind="SecurityContextConstraints",
+        )
+        for scc_name in [SCC_RESTRICTED, SCC_HOSTPATH, SCC_SHELL]:
+            try:
+                scc = scc_api.get(name=scc_name)
+                users = [u for u in (scc.users or []) if u != sa_ref]
+                scc_api.patch(
+                    name=scc_name,
+                    body={"users": users},
+                    content_type="application/merge-patch+json",
+                )
+            except Exception:
+                pass
+        log.info("Removed %s from tinycode SCCs", sa_ref)
+    except Exception as exc:
+        log.warning("Could not remove SCC binding for %s: %s", name, exc)
 
 
 def get_route_url(name: str, namespace: str) -> str:

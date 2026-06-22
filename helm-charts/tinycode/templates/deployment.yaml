@@ -26,12 +26,11 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ .Values.instanceName }}-tinycode
-      # UID 1001 / GID 0 matches ContainerFile (useradd -u 1001 -g 0).
-      # GID 0 with g=u permissions is the OpenShift arbitrary-UID pattern.
+      # Let OpenShift assign the UID from the namespace's allowed range.
+      # The container image (ghcr.io/bjohns/tiny-container) uses g=u
+      # permissions so any assigned UID can write to its directories.
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1001
-        fsGroup: 0
         seccompProfile:
           type: RuntimeDefault
 
@@ -78,7 +77,6 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
-            runAsUser: 1001
             capabilities:
               drop:
                 - ALL

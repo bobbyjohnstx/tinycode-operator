@@ -1,4 +1,4 @@
-image: ghcr.io/bjohns/tiny-container:latest
+image: quay.io/bjohns/tiny-container:latest
 replicas: 1
 
 resources:
