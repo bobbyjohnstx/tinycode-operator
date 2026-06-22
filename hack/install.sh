@@ -75,6 +75,60 @@ oc rollout status deployment/tinycode-operator-manager \
     --timeout=120s
 
 info "✓ tinycode-operator installed successfully"
+
+# ── vLLM preflight check ──────────────────────────────────────────────────────
+# Inspect cluster Deployments for vLLM containers missing tool-calling flags.
+# The operator will also re-check at reconcile time and report in CR status.
+info ""
+info "Checking vLLM deployments for tool calling configuration..."
+
+VLLM_FOUND=false
+VLLM_WARN=false
+
+while IFS= read -r ns; do
+    while IFS= read -r deploy; do
+        # Check if this deployment runs a vLLM container
+        args=$(oc get deployment "$deploy" -n "$ns" \
+            -o jsonpath='{.spec.template.spec.containers[*].args}' 2>/dev/null)
+        echo "$args" | grep -q "\-\-model" || continue
+
+        VLLM_FOUND=true
+        has_tool_choice=$(echo "$args" | grep -c "enable-auto-tool-choice" || true)
+        has_parser=$(echo "$args" | grep -c "tool-call-parser" || true)
+
+        if [[ "$has_tool_choice" -gt 0 && "$has_parser" -gt 0 ]]; then
+            info "  ✓ ${ns}/${deploy} — tool calling configured"
+        else
+            warn "  ✗ ${ns}/${deploy} — tool calling NOT configured"
+            warn "    Missing: --enable-auto-tool-choice and/or --tool-call-parser"
+            VLLM_WARN=true
+        fi
+    done < <(oc get deployments -n "$ns" --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null)
+done < <(oc get namespaces --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null)
+
+if [[ "$VLLM_FOUND" == "false" ]]; then
+    info "  No vLLM deployments found. The operator will check at reconcile time."
+fi
+
+if [[ "$VLLM_WARN" == "true" ]]; then
+    warn ""
+    warn "  ┌─────────────────────────────────────────────────────────────────────┐"
+    warn "  │  ACTION REQUIRED: vLLM tool calling not enabled                     │"
+    warn "  │                                                                     │"
+    warn "  │  tinycode uses tools (file read/write, bash, grep) for all          │"
+    warn "  │  coding tasks. Without tool calling, tinycode runs as chat-only.    │"
+    warn "  │                                                                     │"
+    warn "  │  Fix: add to each vLLM deployment's container args:                 │"
+    warn "  │    --enable-auto-tool-choice                                        │"
+    warn "  │    --tool-call-parser hermes   (Qwen3/Qwen2.5)                     │"
+    warn "  │    --tool-call-parser llama3_json  (Llama 3.x)                     │"
+    warn "  │                                                                     │"
+    warn "  │  Full guide: docs/vllm-tool-calling.md                              │"
+    warn "  └─────────────────────────────────────────────────────────────────────┘"
+    warn ""
+fi
+
+# ── Next steps ────────────────────────────────────────────────────────────────
 info ""
 info "Next steps:"
 info "  1. Create a namespace for your tinycode instance and grant the operator"
@@ -95,3 +149,5 @@ info "     oc apply -f config/samples/tinycode_v1alpha1_basic.yaml"
 info ""
 info "  4. Get the URL:"
 info "     oc get tinycodeinstance -n tinycode-dev -o wide"
+info ""
+info "  vLLM tool calling: docs/vllm-tool-calling.md"
