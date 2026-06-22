@@ -103,6 +103,7 @@ rules:
       - rbac.authorization.k8s.io
     resources:
       - rolebindings
+      - clusterrolebindings
     verbs:
       - get
       - list

@@ -16,23 +16,16 @@ labels:
 
 # Run as a specific non-root UID (matches container image user)
 runAsUser:
-  type: MustRunAs
-  uid: 1001
+  type: RunAsAny
 
 seLinuxContext:
-  type: MustRunAs
+  type: RunAsAny
 
 fsGroup:
-  type: MustRunAs
-  ranges:
-    - min: 1001
-      max: 1001
+  type: RunAsAny
 
 supplementalGroups:
-  type: MustRunAs
-  ranges:
-    - min: 1001
-      max: 1001
+  type: RunAsAny
 
 # No host access of any kind
 allowHostDirVolumePlugin: false

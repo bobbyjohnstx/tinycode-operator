@@ -25,23 +25,16 @@ labels:
   app.kubernetes.io/managed-by: tinycode-operator
 
 runAsUser:
-  type: MustRunAs
-  uid: 1001
+  type: RunAsAny
 
 seLinuxContext:
-  type: MustRunAs
+  type: RunAsAny
 
 fsGroup:
-  type: MustRunAs
-  ranges:
-    - min: 1001
-      max: 1001
+  type: RunAsAny
 
 supplementalGroups:
-  type: MustRunAs
-  ranges:
-    - min: 1001
-      max: 1001
+  type: RunAsAny
 
 # Host path volume allowed — all others same as restricted
 allowHostDirVolumePlugin: true
