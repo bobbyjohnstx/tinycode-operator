@@ -41,4 +41,4 @@ ENV HOME=/tmp
 # UID 1001 already exists in ubi-minimal (operator user)
 USER 1001:0
 
-ENTRYPOINT ["python3.11", "/app/main.py"]
+ENTRYPOINT ["python3.11", "-m", "kopf", "run", "--all-namespaces", "--liveness=http://0.0.0.0:8081/healthz", "/app/main.py"]
