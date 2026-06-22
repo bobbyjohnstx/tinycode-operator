@@ -1,0 +1,40 @@
+{{- if not .Values.storage.hostPath.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.instanceName }}-data
+  namespace: {{ .Values.instanceNamespace }}
+  labels:
+    app.kubernetes.io/name: tinycode
+    app.kubernetes.io/instance: {{ .Values.instanceName }}
+    app.kubernetes.io/managed-by: tinycode-operator
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.storage.dataSize }}
+  {{- if .Values.storage.storageClassName }}
+  storageClassName: {{ .Values.storage.storageClassName }}
+  {{- end }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.instanceName }}-projects
+  namespace: {{ .Values.instanceNamespace }}
+  labels:
+    app.kubernetes.io/name: tinycode
+    app.kubernetes.io/instance: {{ .Values.instanceName }}
+    app.kubernetes.io/managed-by: tinycode-operator
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.storage.projectsSize }}
+  {{- if .Values.storage.storageClassName }}
+  storageClassName: {{ .Values.storage.storageClassName }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,31 @@
+---
+# TinycodeInstance with host shell access enabled.
+# REQUIRES: cluster-admin to pre-bind the tinycode-shell SCC.
+#
+# The tinycode-shell SCC grants hostPID, allowing the tinycode shell
+# tool to run commands on the host via nsenter. This enables tinycode
+# to execute build commands, run tests, and interact with host services
+# as if running natively on the node.
+#
+# SECURITY CHECKLIST (cluster-admin must verify before deploying):
+# [ ] The target namespace is dedicated to trusted users only
+# [ ] Network policies restrict pod-to-pod communication
+# [ ] Audit logging is enabled on the cluster
+# [ ] The pod does NOT run as root (UID 1000)
+# [ ] SCC binding is scoped to this specific ServiceAccount only
+apiVersion: tinycode.dev/v1alpha1
+kind: TinycodeInstance
+metadata:
+  name: shell-tinycode
+  namespace: tinycode-dev
+spec:
+  image: quay.io/tinycode/server:latest
+  shell:
+    enabled: true
+  storage:
+    dataSize: "1Gi"
+    projectsSize: "50Gi"
+  auth:
+    passwordSecret: tinycode-password
+  ollama:
+    host: "http://ollama.ollama-system.svc.cluster.local:11434"

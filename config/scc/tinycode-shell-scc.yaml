@@ -1,0 +1,86 @@
+---
+# tinycode-shell: SCC for tinycode instances with shell access enabled
+# (spec.shell.enabled=true).
+#
+# SECURITY WARNING: This SCC grants hostPID which allows the container to
+# see all processes on the node, enabling tools like nsenter to run
+# commands in the host namespace. This is required for tinycode's shell
+# tool to execute commands on the host.
+#
+# Only bind this SCC after thorough security review. Requires cluster-admin.
+# Document the business justification before use.
+#
+# Mitigations applied:
+#   - Still non-privileged (allowPrivilegedContainer: false)
+#   - UID 1000 only (not root)
+#   - ALL capabilities dropped
+#   - SELinux enforced
+#   - No host network access
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: tinycode-shell
+  annotations:
+    kubernetes.io/description: >
+      SCC for tinycode instances requiring shell command execution on the host.
+      Grants hostPID for nsenter-based host shell access.
+      Requires cluster-admin approval and documented justification.
+labels:
+  app.kubernetes.io/managed-by: tinycode-operator
+
+runAsUser:
+  type: MustRunAs
+  uid: 1000
+
+seLinuxContext:
+  type: MustRunAs
+
+fsGroup:
+  type: MustRunAs
+  ranges:
+    - min: 1000
+      max: 1000
+
+supplementalGroups:
+  type: MustRunAs
+  ranges:
+    - min: 1000
+      max: 1000
+
+# hostPID required for nsenter-based shell execution
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: true
+allowHostPorts: false
+
+allowPrivilegeEscalation: false
+allowPrivilegedContainer: false
+
+allowedCapabilities:
+  # SYS_PTRACE: required for nsenter to attach to host processes
+  - SYS_PTRACE
+defaultAddCapabilities: []
+requiredDropCapabilities:
+  - KILL
+  - MKNOD
+  - NET_RAW
+  - SETGID
+  - SETUID
+  - SETFCAP
+  - SETPCAP
+  - NET_BIND_SERVICE
+  - SYS_CHROOT
+  - AUDIT_WRITE
+
+volumes:
+  - configMap
+  - csi
+  - emptyDir
+  - ephemeral
+  - persistentVolumeClaim
+  - projected
+  - secret
+
+seccompProfiles:
+  - runtime/default

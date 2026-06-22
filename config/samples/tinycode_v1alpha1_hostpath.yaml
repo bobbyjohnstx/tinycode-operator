@@ -1,0 +1,25 @@
+---
+# TinycodeInstance with host filesystem access.
+# The tinycode-hostpath SCC must be approved by cluster-admin first:
+#
+#   oc adm policy add-scc-to-user tinycode-hostpath \
+#     -z <namespace>-<name>-tinycode -n <namespace>
+#
+# SECURITY: The host path at /home/developer/projects will be writable
+# by the tinycode container (UID 1000). Ensure the host directory
+# permissions allow this UID.
+apiVersion: tinycode.dev/v1alpha1
+kind: TinycodeInstance
+metadata:
+  name: hostpath-tinycode
+  namespace: tinycode-dev
+spec:
+  image: quay.io/tinycode/server:latest
+  storage:
+    hostPath:
+      path: /home/developer/projects
+      readOnly: false
+  auth:
+    passwordSecret: tinycode-password
+  ollama:
+    host: "http://ollama.ollama-system.svc.cluster.local:11434"

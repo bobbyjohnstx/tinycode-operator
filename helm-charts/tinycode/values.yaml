@@ -1,0 +1,40 @@
+image: quay.io/tinycode/server:latest
+replicas: 1
+
+resources:
+  limits:
+    cpu: "2"
+    memory: "2Gi"
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+
+storage:
+  dataSize: "1Gi"
+  projectsSize: "10Gi"
+  storageClassName: ""
+  hostPath:
+    enabled: false
+    path: ""
+    readOnly: false
+
+hostname: ""
+tlsTermination: edge
+
+ollama:
+  enabled: false
+  host: ""
+  models: []
+
+auth:
+  passwordSecret: ""
+
+shell:
+  enabled: false
+
+nodeSelector: {}
+tolerations: []
+
+# Internal — set by the operator from CR metadata
+instanceName: ""
+instanceNamespace: ""

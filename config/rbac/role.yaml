@@ -1,0 +1,127 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tinycode-operator-manager-role
+  labels:
+    app.kubernetes.io/name: tinycode-operator
+    app.kubernetes.io/managed-by: tinycode-operator
+rules:
+  # Manage TinycodeInstance CRs
+  - apiGroups:
+      - tinycode.dev
+    resources:
+      - tinycodeinstances
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - tinycode.dev
+    resources:
+      - tinycodeinstances/status
+    verbs:
+      - get
+      - update
+      - patch
+  - apiGroups:
+      - tinycode.dev
+    resources:
+      - tinycodeinstances/finalizers
+    verbs:
+      - update
+
+  # Manage core workload resources in watched namespaces
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - services
+      - serviceaccounts
+      - persistentvolumeclaims
+      - configmaps
+      - events
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # OpenShift Routes
+  - apiGroups:
+      - route.openshift.io
+    resources:
+      - routes
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # Read secrets (for password validation, not create)
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+
+  # SCC bindings — operator binds the appropriate SCC to instance SAs
+  - apiGroups:
+      - security.openshift.io
+    resources:
+      - securitycontextconstraints
+    verbs:
+      - get
+      - list
+      - watch
+      - use
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - rolebindings
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
+  # Leader election
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete

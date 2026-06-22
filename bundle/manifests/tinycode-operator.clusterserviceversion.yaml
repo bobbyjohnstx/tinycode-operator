@@ -1,0 +1,187 @@
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: tinycode-operator.v0.1.0
+  namespace: placeholder
+  annotations:
+    alm-examples: |-
+      [
+        {
+          "apiVersion": "tinycode.dev/v1alpha1",
+          "kind": "TinycodeInstance",
+          "metadata": {"name": "my-tinycode", "namespace": "tinycode-dev"},
+          "spec": {
+            "image": "quay.io/tinycode/server:latest",
+            "storage": {"dataSize": "1Gi", "projectsSize": "10Gi"},
+            "auth": {"passwordSecret": "tinycode-password"}
+          }
+        }
+      ]
+    capabilities: Basic Install
+    categories: Developer Tools, AI/Machine Learning
+    containerImage: quay.io/tinycode/operator:latest
+    description: |
+      Deploys and manages tinycode AI coding assistant instances on OpenShift.
+      Supports PVC storage, host filesystem access, and host shell execution
+      with appropriate SecurityContextConstraints for each access level.
+    operators.openshift.io/valid-subscription: '["OpenShift Kubernetes Engine", "OpenShift Container Platform"]'
+    support: tinycode community
+spec:
+  displayName: Tinycode Operator
+  description: |
+    ## Overview
+
+    The Tinycode Operator manages **TinycodeInstance** custom resources, deploying
+    the tinycode AI coding assistant as a web-accessible service on OpenShift.
+
+    ## Features
+
+    - **PVC-backed storage** — project files and database stored on persistent volumes
+    - **Host filesystem access** — optional HostPath mount for direct node filesystem access
+    - **Host shell execution** — optional shell tool access via hostPID + nsenter
+    - **OpenShift Routes** — automatic TLS-terminated Route creation
+    - **SecurityContextConstraints** — three SCCs with least-privilege defaults
+    - **Ollama integration** — connect to an Ollama instance for local LLM inference
+
+    ## Security
+
+    Three SCC tiers, applied automatically based on `spec`:
+    - **tinycode-restricted** (default) — no host access, UID 1000, all caps dropped
+    - **tinycode-hostpath** — adds HostPath volume access, requires cluster-admin approval
+    - **tinycode-shell** — adds hostPID for shell execution, requires cluster-admin approval
+
+    ## Quick Start
+
+    1. Create a password secret:
+       ```
+       oc create secret generic tinycode-password \
+         --from-literal=TINYCODE_SERVER_PASSWORD=mysecretpass \
+         -n my-namespace
+       ```
+
+    2. Create a TinycodeInstance:
+       ```yaml
+       apiVersion: tinycode.dev/v1alpha1
+       kind: TinycodeInstance
+       metadata:
+         name: my-tinycode
+         namespace: my-namespace
+       spec:
+         auth:
+           passwordSecret: tinycode-password
+       ```
+
+    3. Get the URL:
+       ```
+       oc get tinycodeinstance my-tinycode -o jsonpath='{.status.url}'
+       ```
+
+  version: 0.1.0
+  maturity: alpha
+  keywords:
+    - ai
+    - coding-assistant
+    - llm
+    - tinycode
+  maintainers:
+    - name: tinycode community
+      email: tinycode@example.com
+  provider:
+    name: tinycode community
+  links:
+    - name: Source Code
+      url: https://github.com/bobbyjohnstx/tinycode
+  icon:
+    - base64data: ""
+      mediatype: image/png
+  minKubeVersion: 1.25.0
+  installModes:
+    - type: OwnNamespace
+      supported: true
+    - type: SingleNamespace
+      supported: true
+    - type: MultiNamespace
+      supported: false
+    - type: AllNamespaces
+      supported: true
+  customresourcedefinitions:
+    owned:
+      - name: tinycodeinstances.tinycode.dev
+        version: v1alpha1
+        kind: TinycodeInstance
+        displayName: Tinycode Instance
+        description: A tinycode AI coding assistant deployment
+  install:
+    strategy: deployment
+    spec:
+      clusterPermissions:
+        - rules:
+            - apiGroups: ["tinycode.dev"]
+              resources: ["tinycodeinstances", "tinycodeinstances/status", "tinycodeinstances/finalizers"]
+              verbs: ["*"]
+            - apiGroups: ["apps"]
+              resources: ["deployments"]
+              verbs: ["*"]
+            - apiGroups: [""]
+              resources: ["services", "serviceaccounts", "persistentvolumeclaims", "configmaps", "events"]
+              verbs: ["*"]
+            - apiGroups: [""]
+              resources: ["secrets"]
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["route.openshift.io"]
+              resources: ["routes"]
+              verbs: ["*"]
+            - apiGroups: ["security.openshift.io"]
+              resources: ["securitycontextconstraints"]
+              resourceNames: ["tinycode-restricted", "tinycode-hostpath", "tinycode-shell"]
+              verbs: ["get", "list", "watch", "use"]
+            - apiGroups: ["rbac.authorization.k8s.io"]
+              resources: ["rolebindings", "clusterrolebindings"]
+              verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+            - apiGroups: ["coordination.k8s.io"]
+              resources: ["leases"]
+              verbs: ["*"]
+          serviceAccountName: tinycode-operator-manager
+      deployments:
+        - name: tinycode-operator-manager
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                control-plane: controller-manager
+            template:
+              metadata:
+                labels:
+                  control-plane: controller-manager
+              spec:
+                serviceAccountName: tinycode-operator-manager
+                securityContext:
+                  runAsNonRoot: true
+                  seccompProfile:
+                    type: RuntimeDefault
+                containers:
+                  - name: manager
+                    image: quay.io/tinycode/operator:latest
+                    command: [python3.11, /app/main.py]
+                    env:
+                      - name: HELM_CHART_PATH
+                        value: /helm-charts/tinycode
+                      - name: OPERATOR_NAMESPACE
+                        valueFrom:
+                          fieldRef:
+                            fieldPath: metadata.namespace
+                    resources:
+                      limits:
+                        cpu: 500m
+                        memory: 256Mi
+                      requests:
+                        cpu: 10m
+                        memory: 64Mi
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      runAsNonRoot: true
+                      capabilities:
+                        drop: [ALL]
+                      readOnlyRootFilesystem: true
+      permissions: []

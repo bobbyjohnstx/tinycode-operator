@@ -1,0 +1,27 @@
+---
+# Basic TinycodeInstance — PVC storage, no host access.
+# Suitable for most developer workstations and CI environments.
+apiVersion: tinycode.dev/v1alpha1
+kind: TinycodeInstance
+metadata:
+  name: my-tinycode
+  namespace: tinycode-dev
+spec:
+  image: quay.io/tinycode/server:latest
+  replicas: 1
+  resources:
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+  storage:
+    dataSize: "1Gi"
+    projectsSize: "20Gi"
+  auth:
+    passwordSecret: tinycode-password
+  ollama:
+    enabled: false
+    host: "http://ollama.ollama-system.svc.cluster.local:11434"
+  tlsTermination: edge

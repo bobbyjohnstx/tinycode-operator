@@ -1,0 +1,13 @@
+apiVersion: v2
+name: tinycode
+description: Helm chart for deploying a TinycodeInstance
+type: application
+version: 0.1.0
+appVersion: "latest"
+maintainers:
+  - name: tinycode-operator
+keywords:
+  - ai
+  - coding-assistant
+  - llm
+  - tinycode

@@ -1,0 +1,66 @@
+---
+# tinycode-restricted: Default SCC for tinycode instances using PVC storage.
+# This is the minimum privilege needed — more restrictive than anyuid,
+# only allows tinycode's dedicated UID (1000) and no host access.
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: tinycode-restricted
+  annotations:
+    kubernetes.io/description: >
+      Restricted SCC for tinycode AI coding assistant instances.
+      Permits UID 1000, no host access, no privileged containers.
+      Use this for standard deployments with PVC-backed storage.
+labels:
+  app.kubernetes.io/managed-by: tinycode-operator
+
+# Run as a specific non-root UID (matches container image user)
+runAsUser:
+  type: MustRunAs
+  uid: 1000
+
+seLinuxContext:
+  type: MustRunAs
+
+fsGroup:
+  type: MustRunAs
+  ranges:
+    - min: 1000
+      max: 1000
+
+supplementalGroups:
+  type: MustRunAs
+  ranges:
+    - min: 1000
+      max: 1000
+
+# No host access of any kind
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+
+# No privilege escalation
+allowPrivilegeEscalation: false
+allowPrivilegedContainer: false
+
+# Allowed capabilities: none
+allowedCapabilities: []
+defaultAddCapabilities: []
+requiredDropCapabilities:
+  - ALL
+
+# Permitted volume types — PVCs, ConfigMaps, Secrets, emptyDir only
+volumes:
+  - configMap
+  - csi
+  - emptyDir
+  - ephemeral
+  - persistentVolumeClaim
+  - projected
+  - secret
+
+# No seccomp override allowed — use cluster default (RuntimeDefault)
+seccompProfiles:
+  - runtime/default

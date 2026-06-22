@@ -1,0 +1,25 @@
+---
+# OpenShift Route — exposes tinycode externally via the cluster ingress.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ .Values.instanceName }}-tinycode
+  namespace: {{ .Values.instanceNamespace }}
+  labels:
+    app.kubernetes.io/name: tinycode
+    app.kubernetes.io/instance: {{ .Values.instanceName }}
+    app.kubernetes.io/managed-by: tinycode-operator
+spec:
+  {{- if .Values.hostname }}
+  host: {{ .Values.hostname }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ .Values.instanceName }}-tinycode
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: {{ .Values.tlsTermination }}
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

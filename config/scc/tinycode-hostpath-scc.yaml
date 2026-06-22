@@ -1,0 +1,72 @@
+---
+# tinycode-hostpath: SCC for tinycode instances that need direct host
+# filesystem access (spec.storage.hostPath.enabled=true).
+#
+# SECURITY WARNING: HostPath access allows the pod to read/write the host
+# filesystem. Only bind this SCC after explicit cluster-admin review.
+# Prefer PVC-backed storage where possible.
+#
+# This SCC is more permissive than tinycode-restricted but still:
+#   - Does NOT allow privileged containers
+#   - Does NOT allow host network/PID/IPC
+#   - Drops ALL capabilities
+#   - Restricts to UID 1000
+#   - Requires SELinux label enforcement
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: tinycode-hostpath
+  annotations:
+    kubernetes.io/description: >
+      SCC for tinycode instances with host path volume mounts.
+      Requires cluster-admin approval before binding.
+      Prefer tinycode-restricted (PVC) where possible.
+labels:
+  app.kubernetes.io/managed-by: tinycode-operator
+
+runAsUser:
+  type: MustRunAs
+  uid: 1000
+
+seLinuxContext:
+  type: MustRunAs
+
+fsGroup:
+  type: MustRunAs
+  ranges:
+    - min: 1000
+      max: 1000
+
+supplementalGroups:
+  type: MustRunAs
+  ranges:
+    - min: 1000
+      max: 1000
+
+# Host path volume allowed — all others same as restricted
+allowHostDirVolumePlugin: true
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+
+allowPrivilegeEscalation: false
+allowPrivilegedContainer: false
+
+allowedCapabilities: []
+defaultAddCapabilities: []
+requiredDropCapabilities:
+  - ALL
+
+volumes:
+  - configMap
+  - csi
+  - emptyDir
+  - ephemeral
+  - hostPath
+  - persistentVolumeClaim
+  - projected
+  - secret
+
+seccompProfiles:
+  - runtime/default
