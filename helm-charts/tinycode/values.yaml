@@ -32,6 +32,12 @@ auth:
 shell:
   enabled: false
 
+clusterAdmin:
+  enabled: false
+  kubeconfigSecretName: ""
+  kubeconfigSecretKey: "kubeconfig"
+  ocVersion: "stable"
+
 nodeSelector: {}
 tolerations: []
 

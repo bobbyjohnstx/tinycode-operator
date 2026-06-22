@@ -102,6 +102,13 @@ def helm_values_for_spec(name: str, namespace: str, spec: dict) -> dict:
         "nodeSelector": spec.get("nodeSelector", {}),
         "tolerations": spec.get("tolerations", []),
     }
+    cluster_admin = spec.get("clusterAdmin", {})
+    values["clusterAdmin"] = {
+        "enabled": cluster_admin.get("enabled", False),
+        "kubeconfigSecretName": cluster_admin.get("kubeconfigSecretName", ""),
+        "kubeconfigSecretKey": cluster_admin.get("kubeconfigSecretKey", "kubeconfig"),
+        "ocVersion": cluster_admin.get("ocVersion", "stable"),
+    }
     return values
 
 
@@ -303,8 +310,71 @@ def check_vllm_tool_calling(namespace: str) -> list[dict]:
     return warnings
 
 
+def validate_cluster_admin(name: str, namespace: str, spec: dict) -> list[dict]:
+    """
+    Validate clusterAdmin spec. Returns a list of warning/error dicts.
+    Checks: Secret existence, key presence, multiple contexts, short-lived tokens.
+    """
+    warnings = []
+    cluster_admin = spec.get("clusterAdmin", {})
+    if not cluster_admin.get("enabled", False):
+        return warnings
+
+    secret_name = cluster_admin.get("kubeconfigSecretName", "")
+    secret_key = cluster_admin.get("kubeconfigSecretKey", "kubeconfig")
+
+    if not secret_name:
+        warnings.append({"type": "error", "message": "clusterAdmin.enabled is true but kubeconfigSecretName is not set"})
+        return warnings
+
+    try:
+        secret = core_v1.read_namespaced_secret(secret_name, namespace)
+    except kubernetes.client.exceptions.ApiException as exc:
+        if exc.status == 404:
+            warnings.append({"type": "error", "message": f"Secret '{secret_name}' not found in namespace '{namespace}'"})
+        else:
+            warnings.append({"type": "error", "message": f"Could not read Secret '{secret_name}': {exc.reason}"})
+        return warnings
+
+    import base64
+    if secret_key not in (secret.data or {}):
+        warnings.append({"type": "error", "message": f"Key '{secret_key}' not found in Secret '{secret_name}'"})
+        return warnings
+
+    # Parse kubeconfig to check for multiple contexts and token type
+    try:
+        import yaml as yaml_mod
+        raw = base64.b64decode(secret.data[secret_key]).decode("utf-8")
+        kc = yaml_mod.safe_load(raw)
+        contexts = kc.get("contexts", [])
+        if len(contexts) > 1:
+            names = [c["name"] for c in contexts]
+            warnings.append({
+                "type": "warning",
+                "message": f"Secret '{secret_name}' contains {len(contexts)} contexts ({', '.join(names)}). "
+                           f"oc will use current-context. Recommend a single-context kubeconfig."
+            })
+
+        # Check for short-lived OAuth tokens (they look like sha256~... or are very long without dots)
+        users = kc.get("users", [])
+        for user in users:
+            token = (user.get("user") or {}).get("token", "")
+            if token and (token.startswith("sha256~") or (len(token) > 100 and "." not in token)):
+                warnings.append({
+                    "type": "warning",
+                    "message": f"User '{user['name']}' appears to use a short-lived OAuth token (expires in 24h). "
+                               f"Use a long-lived ServiceAccount token instead. "
+                               f"See docs/rhoai-cluster-setup.md for the helper command."
+                })
+    except Exception as exc:
+        warnings.append({"type": "warning", "message": f"Could not parse kubeconfig in Secret '{secret_name}': {exc}"})
+
+    return warnings
+
+
 def set_status(name: str, namespace: str, phase: str, ready: bool, message: str,
-               url: str = "", tool_calling_warnings: list | None = None):
+               url: str = "", tool_calling_warnings: list | None = None,
+               cluster_admin_warnings: list | None = None):
     """Patch the TinycodeInstance status."""
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     conditions = [
@@ -332,6 +402,27 @@ def set_status(name: str, namespace: str, phase: str, ready: bool, message: str,
             "message": "All vLLM services are properly configured",
             "lastTransitionTime": now,
         })
+    if cluster_admin_warnings is not None:
+        errors = [w for w in cluster_admin_warnings if w.get("type") == "error"]
+        if errors:
+            conditions.append({
+                "type": "ClusterAdminReady",
+                "status": "False",
+                "reason": "ClusterAdminConfigError",
+                "message": "; ".join(w["message"] for w in errors),
+                "lastTransitionTime": now,
+            })
+        else:
+            ca_message = "Cluster-admin mode configured successfully"
+            if cluster_admin_warnings:
+                ca_message += ". Warnings: " + "; ".join(w["message"] for w in cluster_admin_warnings)
+            conditions.append({
+                "type": "ClusterAdminReady",
+                "status": "True",
+                "reason": "ClusterAdminReady",
+                "message": ca_message,
+                "lastTransitionTime": now,
+            })
 
     status_body = {
         "status": {
@@ -397,7 +488,22 @@ async def reconcile(
     logger.info("Reconciling TinycodeInstance %s/%s", namespace, name)
     set_status(name, namespace, "Deploying", False, "Reconciliation in progress")
 
-    # Step 1: SCC binding
+    # Step 1: Validate clusterAdmin spec (Secret existence, key, contexts, token type)
+    ca_warnings = await asyncio.get_event_loop().run_in_executor(
+        None, lambda: validate_cluster_admin(name, namespace, spec)
+    )
+    ca_errors = [w for w in ca_warnings if w.get("type") == "error"]
+    if ca_errors:
+        for w in ca_errors:
+            logger.error("clusterAdmin validation error: %s", w["message"])
+        msg = f"clusterAdmin validation failed: {ca_errors[0]['message']}"
+        set_status(name, namespace, "Failed", False, msg, cluster_admin_warnings=ca_warnings)
+        raise kopf.PermanentError(msg)
+    if ca_warnings:
+        for w in ca_warnings:
+            logger.warning("clusterAdmin warning: %s", w["message"])
+
+    # Step 2: SCC binding
     scc = scc_name_for_spec(spec)
     logger.info("Using SCC: %s", scc)
     try:
@@ -408,7 +514,7 @@ async def reconcile(
         set_status(name, namespace, "Failed", False, msg)
         raise kopf.PermanentError(msg) from exc
 
-    # Step 2: Helm install/upgrade
+    # Step 3: Helm install/upgrade
     values = helm_values_for_spec(name, namespace, spec)
     release = helm_release_name(name, namespace)
     helm_args = ["upgrade", "--install"]
@@ -422,7 +528,7 @@ async def reconcile(
         set_status(name, namespace, "Failed", False, msg)
         raise kopf.TemporaryError(msg, delay=60)
 
-    # Step 3: Check vLLM tool calling in the namespace and any configured URLs
+    # Step 4: Check vLLM tool calling in the namespace and any configured URLs
     tc_warnings = await asyncio.get_event_loop().run_in_executor(
         None, lambda: check_vllm_tool_calling(namespace)
     )
@@ -430,14 +536,17 @@ async def reconcile(
         for w in tc_warnings:
             logger.warning("Tool calling not configured: %s", w["message"])
 
-    # Step 4: Fetch Route URL and update status
+    # Step 5: Fetch Route URL and update status
     url = get_route_url(name, namespace)
     msg = f"TinycodeInstance {name} deployed successfully"
     if url:
         msg += f". URL: {url}"
     if tc_warnings:
         msg += ". WARNING: vLLM tool calling not configured — see status.conditions for details"
-    set_status(name, namespace, "Running", True, msg, url=url, tool_calling_warnings=tc_warnings)
+    # Pass ca_warnings only when clusterAdmin is enabled (None = no condition appended)
+    ca_warnings_for_status = ca_warnings if spec.get("clusterAdmin", {}).get("enabled", False) else None
+    set_status(name, namespace, "Running", True, msg, url=url,
+               tool_calling_warnings=tc_warnings, cluster_admin_warnings=ca_warnings_for_status)
     logger.info("Reconcile complete: %s", msg)
 
 
