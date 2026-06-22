@@ -96,8 +96,7 @@ spec:
               mountPath: /projects
 
           livenessProbe:
-            httpGet:
-              path: /global/health
+            tcpSocket:
               port: http
             initialDelaySeconds: 15
             periodSeconds: 30
@@ -105,8 +104,7 @@ spec:
             failureThreshold: 3
 
           readinessProbe:
-            httpGet:
-              path: /global/health
+            tcpSocket:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
