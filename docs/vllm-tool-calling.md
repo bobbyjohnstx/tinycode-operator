@@ -160,16 +160,84 @@ oc delete pod -n tinycode-dev --all
 
 ---
 
-## Context Limit Note
+## Increasing the Context Window
 
-The current Qwen3-30B deployment uses `--max-model-len=8192` (8K tokens total).
-After system prompt and tool schemas, only ~4-5K tokens remain for conversation.
-For a coding assistant, a higher value is recommended:
+The default `--max-model-len=8192` leaves only ~4-5K tokens for conversation after system
+prompt and tool schemas. For a coding assistant this is marginal — a single file read can
+consume most of it.
+
+### Why it's limited
+
+The KV (key-value) attention cache grows linearly with sequence length and consumes GPU VRAM.
+At 8k tokens the KV cache uses ~4GB in float16 on a 24GB L4, leaving almost nothing free.
+
+### Fix: FP8 KV cache quantization
+
+Modern GPUs (Ada Lovelace / Ampere and newer) support FP8 natively. Quantizing the KV cache
+from FP16 → FP8 halves its memory, allowing roughly double the context for the same VRAM:
+
+| `--max-model-len` | KV dtype | KV cache memory | Fits on L4 24GB? |
+|------------------|----------|-----------------|-----------------|
+| 8192 (current)   | fp16     | ~4 GB           | Yes             |
+| 16384            | fp8      | ~4 GB           | Yes             |
+| 32768            | fp8      | ~8 GB           | Likely yes      |
+| 65536            | fp8      | ~16 GB          | Probably not    |
+
+### Apply the patch
 
 ```bash
 oc patch deployment qwen3-30b -n qwen3 --type=json -p='[
-  {"op":"replace","path":"/spec/template/spec/containers/0/args/4","value":"--max-model-len=32768"}
+  {"op":"replace","path":"/spec/template/spec/containers/0/args/4","value":"--max-model-len=32768"},
+  {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kv-cache-dtype"},
+  {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"fp8"},
+  {"op":"replace","path":"/spec/template/spec/containers/0/args/5","value":"--gpu-memory-utilization=0.95"}
 ]'
+```
+
+If the pod OOMs during startup (check `oc describe pod -n qwen3`), reduce to 16k:
+
+```bash
+oc patch deployment qwen3-30b -n qwen3 --type=json -p='[
+  {"op":"replace","path":"/spec/template/spec/containers/0/args/4","value":"--max-model-len=16384"}
+]'
+```
+
+### After the patch
+
+Update the tinycode context limit to match (80% for conversation, 20% for output):
+
+| `max-model-len` | `limit.context` | `limit.output` |
+|-----------------|-----------------|----------------|
+| 16384           | 13000           | 2000           |
+| 32768           | 26000           | 4000           |
+
+Update the tinycode config in the pod:
+
+```bash
+POD=$(oc get pods -n tinycode-dev --no-headers | awk 'NR==1{print $1}')
+oc exec -n tinycode-dev "$POD" -- sh -c 'cat > /home/tinycode/.config/tinycode/tinycode.json << '"'"'EOF'"'"'
+{
+  "model": "vllm-qwen3/qwen3-30b",
+  "small_model": "vllm-llama/llama-32-3b-instruct",
+  "provider": {
+    "vllm-qwen3": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": { "baseURL": "http://172.30.151.43:8080/v1", "name": "vllm-qwen3" },
+      "models": {
+        "qwen3-30b": { "limit": { "context": 26000, "output": 4000 } }
+      }
+    },
+    "vllm-llama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": { "baseURL": "http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1", "name": "vllm-llama" },
+      "models": {
+        "llama-32-3b-instruct": { "limit": { "context": 14000, "output": 2000 } }
+      }
+    }
+  }
+}
+EOF'
+oc delete pod -n tinycode-dev --all
 ```
 
 Verify available GPU memory supports the higher value before changing.
