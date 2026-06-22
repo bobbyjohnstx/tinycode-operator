@@ -96,12 +96,30 @@ while IFS= read -r ns; do
         has_tool_choice=$(echo "$args" | grep -c "enable-auto-tool-choice" || true)
         has_parser=$(echo "$args" | grep -c "tool-call-parser" || true)
 
-        if [[ "$has_tool_choice" -gt 0 && "$has_parser" -gt 0 ]]; then
-            info "  ✓ ${ns}/${deploy} — tool calling configured"
-        else
-            warn "  ✗ ${ns}/${deploy} — tool calling NOT configured"
-            warn "    Missing: --enable-auto-tool-choice and/or --tool-call-parser"
+        has_tool_choice=$(echo "$args" | grep -c "enable-auto-tool-choice" || true)
+        has_parser=$(echo "$args" | grep -c "tool-call-parser" || true)
+        has_fp8=$(echo "$args" | grep -c "kv-cache-dtype" || true)
+        max_len=$(echo "$args" | grep -oE 'max-model-len[= ]+[0-9]+' | grep -oE '[0-9]+' || echo "0")
+
+        STATUS="  ✓ ${ns}/${deploy}"
+        WARN_PARTS=""
+
+        if [[ "$has_tool_choice" -eq 0 || "$has_parser" -eq 0 ]]; then
+            WARN_PARTS="${WARN_PARTS} [tool-calling-missing]"
             VLLM_WARN=true
+        fi
+        if [[ "$max_len" -gt 0 && "$max_len" -lt 16384 ]]; then
+            WARN_PARTS="${WARN_PARTS} [context=${max_len}-too-small]"
+            VLLM_WARN=true
+        fi
+        if [[ "$has_fp8" -eq 0 && "$max_len" -gt 0 ]]; then
+            WARN_PARTS="${WARN_PARTS} [fp8-kv-cache-recommended]"
+        fi
+
+        if [[ -z "$WARN_PARTS" ]]; then
+            info "  ✓ ${ns}/${deploy} — context=${max_len} tool-calling=yes kv-cache-dtype=fp8"
+        else
+            warn "  ✗ ${ns}/${deploy} —${WARN_PARTS}"
         fi
     done < <(oc get deployments -n "$ns" --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null)
 done < <(oc get namespaces --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null)
@@ -112,19 +130,21 @@ fi
 
 if [[ "$VLLM_WARN" == "true" ]]; then
     warn ""
-    warn "  ┌─────────────────────────────────────────────────────────────────────┐"
-    warn "  │  ACTION REQUIRED: vLLM tool calling not enabled                     │"
-    warn "  │                                                                     │"
-    warn "  │  tinycode uses tools (file read/write, bash, grep) for all          │"
-    warn "  │  coding tasks. Without tool calling, tinycode runs as chat-only.    │"
-    warn "  │                                                                     │"
-    warn "  │  Fix: add to each vLLM deployment's container args:                 │"
-    warn "  │    --enable-auto-tool-choice                                        │"
-    warn "  │    --tool-call-parser hermes   (Qwen3/Qwen2.5)                     │"
-    warn "  │    --tool-call-parser llama3_json  (Llama 3.x)                     │"
-    warn "  │                                                                     │"
-    warn "  │  Full guide: docs/vllm-tool-calling.md                              │"
-    warn "  └─────────────────────────────────────────────────────────────────────┘"
+    warn "  ┌──────────────────────────────────────────────────────────────────────────┐"
+    warn "  │  ACTION REQUIRED: vLLM not fully configured for tinycode                 │"
+    warn "  │                                                                          │"
+    warn "  │  Required flags (tool calling):                                          │"
+    warn "  │    --enable-auto-tool-choice                                             │"
+    warn "  │    --tool-call-parser hermes        (Qwen3/Qwen2.5)                     │"
+    warn "  │    --tool-call-parser llama3_json   (Llama 3.x)                         │"
+    warn "  │                                                                          │"
+    warn "  │  Recommended flags (context window):                                    │"
+    warn "  │    --kv-cache-dtype fp8             (halves KV memory — L4/A10/H100)    │"
+    warn "  │    --max-model-len 32768            (32k context for coding sessions)    │"
+    warn "  │    --gpu-memory-utilization 0.95                                         │"
+    warn "  │                                                                          │"
+    warn "  │  Full setup guide: docs/rhoai-cluster-setup.md                           │"
+    warn "  └──────────────────────────────────────────────────────────────────────────┘"
     warn ""
 fi
 
