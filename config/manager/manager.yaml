@@ -39,13 +39,9 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: manager
-          image: quay.io/tinycode/operator:latest
+          image: quay.io/bjohns/tinycode-operator:latest
           imagePullPolicy: IfNotPresent
-          command:
-            - /manager
-          args:
-            - --leader-elect
-            - --leader-election-id=tinycode-operator
+          # No command override — use image ENTRYPOINT (python3.11 /app/main.py)
           ports:
             - name: metrics
               containerPort: 8383
@@ -62,20 +58,6 @@ spec:
                   fieldPath: metadata.namespace
             - name: HELM_CHART_PATH
               value: /helm-charts/tinycode
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: health
-            initialDelaySeconds: 15
-            periodSeconds: 20
-            timeoutSeconds: 5
-          readinessProbe:
-            httpGet:
-              path: /readyz
-              port: health
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            timeoutSeconds: 3
           resources:
             limits:
               cpu: 500m
