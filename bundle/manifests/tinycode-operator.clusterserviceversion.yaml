@@ -12,7 +12,7 @@ metadata:
           "kind": "TinycodeInstance",
           "metadata": {"name": "my-tinycode", "namespace": "tinycode-dev"},
           "spec": {
-            "image": "ghcr.io/bjohns/tinycode-container:latest",
+            "image": "quay.io/bjohns/tinycode-container:latest",
             "storage": {"dataSize": "1Gi", "projectsSize": "10Gi"},
             "auth": {"passwordSecret": "tinycode-password"}
           }

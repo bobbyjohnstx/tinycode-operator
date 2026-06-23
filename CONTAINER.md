@@ -8,7 +8,7 @@ must stay in sync with these values.
 
 | Field | Value |
 |-------|-------|
-| Registry | `ghcr.io/bjohns/tinycode-container` |
+| Registry | `quay.io/bjohns/tinycode-container` |
 | Tags | `:latest`, `:<git-sha>` |
 | Architectures | `linux/amd64`, `linux/arm64` |
 | Base | Red Hat UBI9-minimal |
