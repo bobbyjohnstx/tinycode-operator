@@ -19,7 +19,7 @@ metadata:
   name: shell-tinycode
   namespace: tinycode-dev
 spec:
-  image: ghcr.io/bjohns/tinycode-container:latest
+  image: quay.io/bjohns/tinycode-container:latest
   shell:
     enabled: true
   storage:
