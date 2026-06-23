@@ -27,7 +27,7 @@ spec:
     spec:
       serviceAccountName: {{ .Values.instanceName }}-tinycode
       # Let OpenShift assign the UID from the namespace's allowed range.
-      # The container image (ghcr.io/bjohns/tiny-container) uses g=u
+      # The container image (ghcr.io/bjohns/tinycode-container) uses g=u
       # permissions so any assigned UID can write to its directories.
       securityContext:
         runAsNonRoot: true

@@ -14,7 +14,7 @@ metadata:
   name: hostpath-tinycode
   namespace: tinycode-dev
 spec:
-  image: ghcr.io/bjohns/tiny-container:latest
+  image: ghcr.io/bjohns/tinycode-container:latest
   storage:
     hostPath:
       path: /home/developer/projects
