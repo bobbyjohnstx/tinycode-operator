@@ -5,7 +5,7 @@
 tinycode instances deployed by the operator currently have no ability to interact with the Kubernetes/OpenShift cluster they run on. This plan adds a "cluster-admin" agent that gives users an AI-assisted interface for cluster operations via the `oc` CLI, scoped to whatever permissions the user's kubeconfig grants.
 
 Three repositories are touched:
-- **tiny-container** (`/Users/bjohns/projects/tiny-container`) -- entrypoint and image changes
+- **tinycode-container** (`/Users/bjohns/projects/tinycode-container`) -- entrypoint and image changes
 - **tinycode-operator** (`/Users/bjohns/projects/tinycode-operator`) -- CRD, Helm chart, operator logic
 - **tinycode** (`/Users/bjohns/projects/tinycode`) -- agent definition (optional; may be config-injected instead)
 
@@ -96,7 +96,7 @@ Modify the Helm chart templates so that when `clusterAdmin.enabled` is true:
 
 ### Step 3: Modify entrypoint.sh to conditionally download `oc`
 
-Add a conditional block to `entrypoint.sh` in tiny-container that downloads and installs the `oc` binary when `TINYCODE_CLUSTER_ADMIN=true`.
+Add a conditional block to `entrypoint.sh` in tinycode-container that downloads and installs the `oc` binary when `TINYCODE_CLUSTER_ADMIN=true`.
 
 **Key details:**
 - Install `oc` to `/home/tinycode/.local/bin/` (writable by UID 1001, add to PATH)
@@ -111,8 +111,8 @@ Add a conditional block to `entrypoint.sh` in tiny-container that downloads and 
 - Log clearly: "Downloading oc CLI..." / "oc CLI installed successfully" / "WARNING: oc CLI download failed, cluster-admin agent will not function"
 
 **Files:**
-- `/Users/bjohns/projects/tiny-container/entrypoint.sh` -- add conditional download block before `exec tinycode`
-- `/Users/bjohns/projects/tiny-container/ContainerFile` -- add `microdnf install -y curl && microdnf clean all` to runtime stage; add `/home/tinycode/.local/bin` to PATH
+- `/Users/bjohns/projects/tinycode-container/entrypoint.sh` -- add conditional download block before `exec tinycode`
+- `/Users/bjohns/projects/tinycode-container/ContainerFile` -- add `microdnf install -y curl && microdnf clean all` to runtime stage; add `/home/tinycode/.local/bin` to PATH
 
 **Acceptance:**
 - Container starts successfully with `TINYCODE_CLUSTER_ADMIN=true` and internet access; `oc version --client` works inside the container

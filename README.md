@@ -128,7 +128,7 @@ All SCCs run as UID 1001 (non-root), GID 0, with `allowPrivilegedContainer: fals
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `spec.image` | string | `ghcr.io/bjohns/tiny-container:latest` | Container image |
+| `spec.image` | string | `ghcr.io/bjohns/tinycode-container:latest` | Container image |
 | `spec.replicas` | integer | `1` | Number of pods (1–10) |
 | `spec.resources.limits.cpu` | string | `2` | CPU limit |
 | `spec.resources.limits.memory` | string | `2Gi` | Memory limit |
@@ -207,4 +207,4 @@ tinycode-operator/
 | Project | Description | Repository |
 |---------|-------------|------------|
 | [tinycode](https://github.com/bobbyjohnstx/tinycode) | Core AI coding assistant — server, TUI, web UI | `github.com/bobbyjohnstx/tinycode` |
-| [tiny-container](https://github.com/bobbyjohnstx/tiny-container) | Container image packaging tinycode + oh-my-tiny | `github.com/bobbyjohnstx/tiny-container` |
+| [tinycode-container](https://github.com/bobbyjohnstx/tinycode-container) | Container image packaging tinycode + oh-my-tiny | `github.com/bobbyjohnstx/tinycode-container` |

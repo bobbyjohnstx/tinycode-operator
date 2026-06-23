@@ -1,14 +1,14 @@
 # Container Contract
 
 This file is the authoritative source of truth for the tinycode container interface.
-Both `tiny-container` (which produces the image) and `tinycode-operator` (which deploys it)
+Both `tinycode-container` (which produces the image) and `tinycode-operator` (which deploys it)
 must stay in sync with these values.
 
 ## Image
 
 | Field | Value |
 |-------|-------|
-| Registry | `ghcr.io/bjohns/tiny-container` |
+| Registry | `ghcr.io/bjohns/tinycode-container` |
 | Tags | `:latest`, `:<git-sha>` |
 | Architectures | `linux/amd64`, `linux/arm64` |
 | Base | Red Hat UBI9-minimal |
@@ -85,5 +85,5 @@ tinycode.jsonc  (PVC-persisted — user customisations survive image upgrades)
 | Project | Purpose | Gitea | GitHub |
 |---------|---------|-------|--------|
 | `tinycode` | Core server, TUI, CLI | `localhost:3000/bjohns/tinycode` | `github.com/bobbyjohnstx/tinycode` |
-| `tiny-container` | Container image | `localhost:3000/bjohns/tiny-container` | `github.com/bobbyjohnstx/tiny-container` |
+| `tinycode-container` | Container image | `localhost:3000/bjohns/tinycode-container` | `github.com/bobbyjohnstx/tinycode-container` |
 | `tinycode-operator` | OpenShift Operator | `localhost:3000/bjohns/tinycode-operator` | `github.com/bobbyjohnstx/tinycode-operator` |
