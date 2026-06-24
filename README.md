@@ -204,6 +204,175 @@ Together, Tekton + Argo CD cover everything the operator + GitHub Actions do tod
 
 Making the operator itself Kubernetes-portable (auto-detecting OpenShift vs vanilla Kubernetes and falling back to `Ingress` when SCCs are unavailable) is a potential enhancement for future releases.
 
+## Multi-User Self-Service Provisioning
+
+**Primary deployment model**: One `TinycodeInstance` CR per user, managed centrally by a cluster-admin in the "Creating a TinycodeInstance" section above.
+
+**Alternative for self-service teams**: Users can provision their own `TinycodeInstance` CRs if your team prefers a self-service model. No code changes to the operator are required — it already watches all namespaces and scopes all resources (Deployments, Services, Routes, PVCs, ServiceAccounts, SCC bindings) by CR name + namespace. Two users in different namespaces get completely isolated resources with no collisions.
+
+### Setup (Cluster-Admin, One-Time)
+
+1. **Create a ClusterRole** granting users permission to manage their own TinycodeInstance CRs:
+
+```yaml
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tinycode-user-role
+rules:
+  - apiGroups:
+      - tinycode.dev
+    resources:
+      - tinycodeinstances
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - delete
+```
+
+Save this as `tinycode-user-role.yaml` and apply once:
+
+```bash
+oc apply -f tinycode-user-role.yaml
+```
+
+### Per-User Setup (Cluster-Admin or Delegated)
+
+For each user who will self-provision, create a namespace and bind the ClusterRole:
+
+```yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tinycode-alice
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: alice-tinycode-user
+  namespace: tinycode-alice
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tinycode-user-role
+subjects:
+  - kind: User
+    name: alice@example.com
+    apiGroup: rbac.authorization.k8s.io
+```
+
+Save as `alice-tinycode-rolebinding.yaml` and apply:
+
+```bash
+oc apply -f alice-tinycode-rolebinding.yaml
+```
+
+The user also needs to create Secrets (password) in their namespace. Grant that permission by adding a namespace Role:
+
+```yaml
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tinycode-secret-creator
+  namespace: tinycode-alice
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - create
+      - get
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: alice-secret-creator
+  namespace: tinycode-alice
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tinycode-secret-creator
+subjects:
+  - kind: User
+    name: alice@example.com
+    apiGroup: rbac.authorization.k8s.io
+```
+
+### User Workflow (Self-Service)
+
+Once the cluster-admin has set up the namespace and RoleBinding, the user can:
+
+```bash
+# 1. Create a password secret in their namespace
+oc create secret generic tinycode-password \
+  --from-literal=TINYCODE_SERVER_PASSWORD=mypassword \
+  -n tinycode-alice
+
+# 2. Create their TinycodeInstance CR
+oc apply -f - <<EOF
+---
+apiVersion: tinycode.dev/v1alpha1
+kind: TinycodeInstance
+metadata:
+  name: alice-dev
+  namespace: tinycode-alice
+spec:
+  image: quay.io/bjohns/tinycode-container:latest
+  replicas: 1
+  resources:
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+  storage:
+    dataSize: "1Gi"
+    projectsSize: "10Gi"
+  auth:
+    passwordSecret: tinycode-password
+  tlsTermination: edge
+EOF
+
+# 3. Wait for the instance to be ready
+oc get tinycodeinstance alice-dev -n tinycode-alice -w
+
+# 4. Get the URL
+oc get tinycodeinstance alice-dev -n tinycode-alice -o jsonpath='{.status.url}'
+```
+
+### Resource Consumption
+
+Each user gets their own pod, PVCs (data and projects), and OpenShift Route. This is **instance-per-user isolation**, not shared multi-tenancy. Resource consumption scales linearly with users:
+
+- **Default limits**: 2 CPU, 2Gi memory per instance
+- **Default requests**: 200m CPU, 512Mi memory per instance
+- **Storage**: 1Gi (config/DB) + 10Gi (projects) per instance
+
+For 10 users with default settings, the cluster needs capacity for at least 2 CPU cores and 5Gi memory across all tinycode instances, plus infrastructure and other workloads.
+
+### Cleanup
+
+A user can delete their instance:
+
+```bash
+oc delete tinycodeinstance alice-dev -n tinycode-alice
+```
+
+Cluster-admin can revoke access by removing the RoleBinding:
+
+```bash
+oc delete rolebinding alice-tinycode-user -n tinycode-alice
+```
+
 ## Project Structure
 
 ```
