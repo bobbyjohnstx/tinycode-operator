@@ -167,6 +167,43 @@ Status phases: `Pending` → `Deploying` → `Running` (or `Failed` / `Terminati
 make uninstall
 ```
 
+## Deploying Without the Operator
+
+The tinycode-operator is OpenShift-specific: it creates OpenShift `Route` objects (not standard Ingress) and manages `SecurityContextConstraints` (SCCs), which are OpenShift-only resources. However, the underlying container image (`tinycode-container`) is portable and runs on any Kubernetes cluster.
+
+### Option 1: Raw Kustomize Manifests
+
+The [tinycode-container](https://github.com/bobbyjohnstx/tinycode-container) repo includes Kustomize manifests for vanilla Kubernetes:
+
+- `k8s/base/` — Deployment, Service, PVC (works on any cluster)
+- `k8s/overlays/ingress/` — Adds a standard `Ingress` instead of OpenShift `Route`
+
+Deploy with:
+
+```bash
+# Clone the container repo
+git clone https://github.com/bobbyjohnstx/tinycode-container
+cd tinycode-container
+
+# Deploy base resources + standard Ingress
+kubectl apply -k k8s/overlays/ingress
+```
+
+This approach is lightweight and requires no CRD or operator installation. You manage Kustomize overlays directly for customization.
+
+### Option 2: Tekton + Argo CD
+
+For a fully Kubernetes-native CI/CD pipeline that replaces both the operator and GitHub Actions:
+
+- **Tekton** — Replaces GitHub Actions. Builds the container image from the ContainerFile and pushes to your registry, triggered by git pushes.
+- **Argo CD** — Replaces the operator's deployment and reconciliation. Watches the Kustomize manifests (or a Helm chart) in the tinycode-container repo and auto-syncs changes to the cluster.
+
+Together, Tekton + Argo CD cover everything the operator + GitHub Actions do today. The tradeoff: you lose the `TinycodeInstance` CRD abstraction and instead manage Kustomize overlays or Helm values directly — arguably simpler for single-instance deployments.
+
+### Future Enhancement
+
+Making the operator itself Kubernetes-portable (auto-detecting OpenShift vs vanilla Kubernetes and falling back to `Ingress` when SCCs are unavailable) is a potential enhancement for future releases.
+
 ## Project Structure
 
 ```
