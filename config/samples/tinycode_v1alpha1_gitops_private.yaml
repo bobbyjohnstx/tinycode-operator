@@ -1,0 +1,36 @@
+---
+# GitOps mode with private repository — requires a credentialsSecret.
+# The Secret should contain either (username, password) for HTTPS or (ssh-privatekey) for SSH.
+apiVersion: tinycode.dev/v1alpha1
+kind: TinycodeInstance
+metadata:
+  name: my-tinycode-gitops-private
+  namespace: tinycode-dev
+spec:
+  image: quay.io/bjohns/tinycode-container:latest
+  replicas: 1
+  resources:
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+  storage:
+    dataSize: "1Gi"
+    projectsSize: "5Gi"
+  git:
+    url: "https://github.com/example/my-private-project.git"
+    branch: "main"
+    depth: 1
+    pullOnRestart: true
+    credentialsSecret: git-credentials
+  auth:
+    passwordSecret: tinycode-password
+  tlsTermination: edge
+---
+# Example Secret for git credentials (HTTPS)
+# kubectl create secret generic git-credentials \
+#   --from-literal=username=myuser \
+#   --from-literal=password=mytoken \
+#   -n tinycode-dev

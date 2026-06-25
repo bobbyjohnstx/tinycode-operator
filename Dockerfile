@@ -37,6 +37,7 @@ RUN chown -R 1001:0 /app /helm-charts && chmod -R g=u /app /helm-charts
 ENV PYTHONPATH=/app/deps
 ENV HELM_CHART_PATH=/helm-charts/tinycode
 ENV HOME=/tmp
+ENV HELM_DRIVER=configmap
 
 # UID 1001 already exists in ubi-minimal (operator user)
 USER 1001:0

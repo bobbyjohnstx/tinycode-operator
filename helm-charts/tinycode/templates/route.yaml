@@ -9,6 +9,11 @@ metadata:
     app.kubernetes.io/name: tinycode
     app.kubernetes.io/instance: {{ .Values.instanceName }}
     app.kubernetes.io/managed-by: tinycode-operator
+  {{- if gt (int .Values.replicas) 1 }}
+  annotations:
+    haproxy.router.openshift.io/balance: source
+    haproxy.router.openshift.io/disable_cookies: "false"
+  {{- end }}
 spec:
   {{- if .Values.hostname }}
   host: {{ .Values.hostname }}

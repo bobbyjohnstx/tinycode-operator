@@ -1,0 +1,38 @@
+---
+apiVersion: tinycode.dev/v1alpha1
+kind: TinycodeInstance
+metadata:
+  name: tinycode-vllm
+  namespace: tinycode
+spec:
+  replicas: 1
+  
+  # Declarative vLLM config — operator auto-probes models and generates provider config
+  vllm:
+    - name: qwen
+      url: http://vllm-qwen.vllm:8000
+      # Optional: override auto-detected limits for specific models
+      models:
+        qwen/Qwen2.5-Coder-32B-Instruct-AWQ:
+          contextLimit: 32768
+          outputLimit: 4096
+    
+    - name: deepseek
+      url: http://vllm-deepseek.vllm:8000
+      # No models field — operator auto-probes and applies 80/20 split
+  
+  # Default model for this instance
+  model: "qwen/Qwen2.5-Coder-32B-Instruct-AWQ"
+  
+  # Storage
+  storage:
+    dataSize: 2Gi
+    projectsSize: 20Gi
+  
+  # Authentication
+  auth:
+    passwordSecret: tinycode-password
+  
+  # External URL
+  hostname: tinycode-vllm.apps.cluster.example.com
+  tlsTermination: edge

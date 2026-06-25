@@ -1,0 +1,29 @@
+---
+# GitOps mode — clone a public repository into /projects.
+# The repository is cloned on pod start using an init container.
+apiVersion: tinycode.dev/v1alpha1
+kind: TinycodeInstance
+metadata:
+  name: my-tinycode-gitops
+  namespace: tinycode-dev
+spec:
+  image: quay.io/bjohns/tinycode-container:latest
+  replicas: 1
+  resources:
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+  storage:
+    dataSize: "1Gi"
+    projectsSize: "5Gi"
+  git:
+    url: "https://github.com/example/my-project.git"
+    branch: "main"
+    depth: 1
+    pullOnRestart: false
+  auth:
+    passwordSecret: tinycode-password
+  tlsTermination: edge

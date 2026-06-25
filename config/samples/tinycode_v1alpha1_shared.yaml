@@ -1,0 +1,26 @@
+---
+# Shared team workspace — multiple replicas with ReadWriteMany PVC.
+# Session affinity is configured via Route annotations to maintain user sessions.
+# The data volume uses emptyDir (SQLite DB is not shared across replicas).
+apiVersion: tinycode.dev/v1alpha1
+kind: TinycodeInstance
+metadata:
+  name: my-tinycode-shared
+  namespace: tinycode-dev
+spec:
+  image: quay.io/bjohns/tinycode-container:latest
+  replicas: 2
+  resources:
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+  storage:
+    dataSize: "1Gi"
+    projectsSize: "50Gi"
+    projectsAccessMode: ReadWriteMany
+  auth:
+    passwordSecret: tinycode-password
+  tlsTermination: edge

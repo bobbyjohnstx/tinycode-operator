@@ -1,9 +1,9 @@
-{{- if .Values.clusterAdmin.enabled }}
+{{- if or .Values.clusterAdmin.enabled .Values.configContent }}
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.instanceName }}-tinycode-cluster-admin
+  name: {{ .Values.instanceName }}-tinycode-config
   namespace: {{ .Values.instanceNamespace }}
   labels:
     app.kubernetes.io/name: tinycode
@@ -11,6 +11,9 @@ metadata:
     app.kubernetes.io/managed-by: tinycode-operator
 data:
   config.json: |
+{{- if .Values.configContent }}
+{{ .Values.configContent | indent 4 }}
+{{- else }}
     {
       "default_agent": "cluster-admin",
       "agent": {
@@ -30,4 +33,5 @@ data:
         }
       }
     }
+{{- end }}
 {{- end }}
