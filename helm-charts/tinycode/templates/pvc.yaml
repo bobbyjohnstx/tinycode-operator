@@ -30,7 +30,7 @@ metadata:
     app.kubernetes.io/managed-by: tinycode-operator
 spec:
   accessModes:
-    - ReadWriteOnce
+    - {{ .Values.storage.projectsAccessMode }}
   resources:
     requests:
       storage: {{ .Values.storage.projectsSize }}

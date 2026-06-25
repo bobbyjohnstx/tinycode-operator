@@ -70,8 +70,107 @@ def scc_name_for_spec(spec: dict) -> str:
     return SCC_RESTRICTED
 
 
+def probe_vllm_models(url: str, timeout: int = 5) -> list[dict]:
+    """
+    Probe a vLLM instance for available models.
+    Returns a list of {id, max_model_len} dicts. Returns empty list on failure.
+    """
+    import urllib.request
+    import urllib.error
+    import json as json_mod
+
+    # Normalize URL: strip trailing slash, ensure /v1 suffix
+    url = url.rstrip("/")
+    if not url.endswith("/v1"):
+        url = f"{url}/v1"
+
+    models_url = f"{url}/models"
+    try:
+        req = urllib.request.Request(models_url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json_mod.loads(resp.read())
+        models = []
+        for entry in data.get("data", []):
+            models.append({
+                "id": entry.get("id", ""),
+                "max_model_len": entry.get("max_model_len", 0),
+            })
+        return models
+    except Exception as exc:
+        log.warning("Failed to probe vLLM at %s: %s", url, exc)
+        return []
+
+
+def build_vllm_config(spec: dict, namespace: str) -> dict | None:
+    """
+    Build tinycode provider config from spec.vllm array.
+    Returns a dict suitable for merging into the tinycode config.json, or None if no vllm entries.
+    """
+    vllm_entries = spec.get("vllm", [])
+    if not vllm_entries:
+        return None
+
+    import math
+
+    providers = {}
+    default_model = spec.get("model", "")
+
+    for entry in vllm_entries:
+        name = entry.get("name", "")
+        url = entry.get("url", "").rstrip("/")
+        if not url.endswith("/v1"):
+            url = f"{url}/v1"
+
+        user_models = entry.get("models", {})
+        probed_models = probe_vllm_models(url)
+
+        models = {}
+        for pm in probed_models:
+            model_id = pm["id"]
+            max_len = pm["max_model_len"]
+
+            # Check for user override
+            if model_id in user_models:
+                ctx = user_models[model_id].get("contextLimit")
+                out = user_models[model_id].get("outputLimit")
+                if ctx and out:
+                    models[model_id] = {"contextLimit": ctx, "outputLimit": out}
+                    continue
+
+            # Auto-detect: 80/20 split
+            if max_len > 0:
+                context = math.floor(max_len * 0.8)
+                output = min(4096, math.floor(max_len * 0.2))
+                models[model_id] = {"contextLimit": context, "outputLimit": output}
+
+        # Add user-defined models not in probed list
+        for model_id, limits in user_models.items():
+            if model_id not in models:
+                ctx = limits.get("contextLimit", 8192)
+                out = limits.get("outputLimit", 4096)
+                models[model_id] = {"contextLimit": ctx, "outputLimit": out}
+
+        if models:
+            providers[name] = {
+                "type": "openai-compatible",
+                "url": url,
+                "models": models,
+            }
+
+    if not providers:
+        return None
+
+    config = {"providers": providers}
+    if default_model:
+        config["model"] = default_model
+
+    return config
+
+
 def helm_values_for_spec(name: str, namespace: str, spec: dict) -> dict:
     """Build Helm values from a TinycodeInstanceSpec."""
+    import json as json_mod
+
     storage = spec.get("storage", {})
     host_path = storage.get("hostPath", {})
 
@@ -87,6 +186,7 @@ def helm_values_for_spec(name: str, namespace: str, spec: dict) -> dict:
         "storage": {
             "dataSize": storage.get("dataSize", "1Gi"),
             "projectsSize": storage.get("projectsSize", "10Gi"),
+            "projectsAccessMode": storage.get("projectsAccessMode", "ReadWriteOnce"),
             "storageClassName": storage.get("storageClassName", ""),
             "hostPath": {
                 "enabled": bool(host_path.get("path")),
@@ -108,7 +208,34 @@ def helm_values_for_spec(name: str, namespace: str, spec: dict) -> dict:
         "kubeconfigSecretName": cluster_admin.get("kubeconfigSecretName", ""),
         "kubeconfigSecretKey": cluster_admin.get("kubeconfigSecretKey", "kubeconfig"),
         "ocVersion": cluster_admin.get("ocVersion", "stable"),
+        "kubeconfigNamespace": cluster_admin.get("kubeconfigNamespace", ""),
+        "clusterRole": cluster_admin.get("clusterRole", ""),
     }
+
+    git = spec.get("git", {})
+    values["git"] = {
+        "enabled": bool(git.get("url")),
+        "url": git.get("url", ""),
+        "branch": git.get("branch", ""),
+        "credentialsSecret": git.get("credentialsSecret", ""),
+        "pullOnRestart": git.get("pullOnRestart", False),
+        "depth": git.get("depth", 1),
+    }
+
+    # Build vLLM config and merge into configContent
+    vllm_config = build_vllm_config(spec, namespace)
+    if vllm_config:
+        values["configContent"] = json_mod.dumps(vllm_config, indent=2)
+    else:
+        values["configContent"] = ""
+
+    # Discovery namespaces for cross-namespace vLLM service discovery
+    discovery = spec.get("discovery", {})
+    discovery_namespaces = discovery.get("namespaces", [])
+    values["discovery"] = {
+        "namespaces": discovery_namespaces,
+    }
+
     return values
 
 
@@ -310,6 +437,74 @@ def check_vllm_tool_calling(namespace: str) -> list[dict]:
     return warnings
 
 
+def validate_git_spec(name: str, namespace: str, spec: dict) -> list[dict]:
+    """
+    Validate git spec. Returns a list of warning/error dicts.
+    Checks: mutual exclusivity with hostPath, credentialsSecret existence.
+    """
+    warnings = []
+    git = spec.get("git", {})
+    if not git.get("url"):
+        return warnings
+
+    # Mutual exclusivity: git.url and hostPath.path
+    host_path = spec.get("storage", {}).get("hostPath", {})
+    if git.get("url") and host_path.get("path"):
+        warnings.append({
+            "type": "error",
+            "message": "spec.git.url and spec.storage.hostPath.path are mutually exclusive"
+        })
+        return warnings
+
+    # Verify credentialsSecret if set
+    creds_secret = git.get("credentialsSecret", "")
+    if creds_secret:
+        try:
+            secret = core_v1.read_namespaced_secret(creds_secret, namespace)
+            # Check for expected keys
+            data_keys = set((secret.data or {}).keys())
+            has_https = {"username", "password"}.issubset(data_keys)
+            has_ssh = "ssh-privatekey" in data_keys
+            if not has_https and not has_ssh:
+                warnings.append({
+                    "type": "warning",
+                    "message": f"Secret '{creds_secret}' should contain either (username, password) for HTTPS or (ssh-privatekey) for SSH"
+                })
+        except kubernetes.client.exceptions.ApiException as exc:
+            if exc.status == 404:
+                warnings.append({
+                    "type": "error",
+                    "message": f"Git credentialsSecret '{creds_secret}' not found in namespace '{namespace}'"
+                })
+            else:
+                warnings.append({
+                    "type": "error",
+                    "message": f"Could not read Secret '{creds_secret}': {exc.reason}"
+                })
+
+    return warnings
+
+
+def validate_shared_workspace(name: str, namespace: str, spec: dict) -> list[dict]:
+    """
+    Validate shared workspace configuration. Returns a list of warning/error dicts.
+    Checks: replicas > 1 requires ReadWriteMany or hostPath.
+    """
+    warnings = []
+    replicas = spec.get("replicas", 1)
+    storage = spec.get("storage", {})
+    access_mode = storage.get("projectsAccessMode", "ReadWriteOnce")
+    host_path_enabled = bool(storage.get("hostPath", {}).get("path"))
+
+    if replicas > 1 and access_mode != "ReadWriteMany" and not host_path_enabled:
+        warnings.append({
+            "type": "error",
+            "message": f"replicas={replicas} requires storage.projectsAccessMode=ReadWriteMany or storage.hostPath.enabled=true"
+        })
+
+    return warnings
+
+
 def validate_cluster_admin(name: str, namespace: str, spec: dict) -> list[dict]:
     """
     Validate clusterAdmin spec. Returns a list of warning/error dicts.
@@ -374,7 +569,8 @@ def validate_cluster_admin(name: str, namespace: str, spec: dict) -> list[dict]:
 
 def set_status(name: str, namespace: str, phase: str, ready: bool, message: str,
                url: str = "", tool_calling_warnings: list | None = None,
-               cluster_admin_warnings: list | None = None):
+               cluster_admin_warnings: list | None = None,
+               vllm_config_ready: bool | None = None):
     """Patch the TinycodeInstance status."""
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     conditions = [
@@ -402,6 +598,23 @@ def set_status(name: str, namespace: str, phase: str, ready: bool, message: str,
             "message": "All vLLM services are properly configured",
             "lastTransitionTime": now,
         })
+    if vllm_config_ready is not None:
+        if vllm_config_ready:
+            conditions.append({
+                "type": "VllmConfigReady",
+                "status": "True",
+                "reason": "VllmConfigGenerated",
+                "message": "vLLM provider config generated successfully",
+                "lastTransitionTime": now,
+            })
+        else:
+            conditions.append({
+                "type": "VllmConfigReady",
+                "status": "False",
+                "reason": "VllmConfigFailed",
+                "message": "Failed to generate vLLM provider config",
+                "lastTransitionTime": now,
+            })
     if cluster_admin_warnings is not None:
         errors = [w for w in cluster_admin_warnings if w.get("type") == "error"]
         if errors:
@@ -488,7 +701,37 @@ async def reconcile(
     logger.info("Reconciling TinycodeInstance %s/%s", namespace, name)
     set_status(name, namespace, "Deploying", False, "Reconciliation in progress")
 
-    # Step 1: Validate clusterAdmin spec (Secret existence, key, contexts, token type)
+    # Step 1: Validate git spec
+    git_warnings = await asyncio.get_event_loop().run_in_executor(
+        None, lambda: validate_git_spec(name, namespace, spec)
+    )
+    git_errors = [w for w in git_warnings if w.get("type") == "error"]
+    if git_errors:
+        for w in git_errors:
+            logger.error("git validation error: %s", w["message"])
+        msg = f"git validation failed: {git_errors[0]['message']}"
+        set_status(name, namespace, "Failed", False, msg)
+        raise kopf.PermanentError(msg)
+    if git_warnings:
+        for w in git_warnings:
+            logger.warning("git warning: %s", w["message"])
+
+    # Step 2: Validate shared workspace configuration
+    workspace_warnings = await asyncio.get_event_loop().run_in_executor(
+        None, lambda: validate_shared_workspace(name, namespace, spec)
+    )
+    workspace_errors = [w for w in workspace_warnings if w.get("type") == "error"]
+    if workspace_errors:
+        for w in workspace_errors:
+            logger.error("shared workspace validation error: %s", w["message"])
+        msg = f"shared workspace validation failed: {workspace_errors[0]['message']}"
+        set_status(name, namespace, "Failed", False, msg)
+        raise kopf.PermanentError(msg)
+    if workspace_warnings:
+        for w in workspace_warnings:
+            logger.warning("shared workspace warning: %s", w["message"])
+
+    # Step 3: Validate clusterAdmin spec (Secret existence, key, contexts, token type)
     ca_warnings = await asyncio.get_event_loop().run_in_executor(
         None, lambda: validate_cluster_admin(name, namespace, spec)
     )
@@ -514,7 +757,13 @@ async def reconcile(
         set_status(name, namespace, "Failed", False, msg)
         raise kopf.PermanentError(msg) from exc
 
-    # Step 3: Helm install/upgrade
+    # Step 3: Build vLLM config and Helm values
+    vllm_config_ready = None
+    vllm_entries = spec.get("vllm", [])
+    if vllm_entries:
+        vllm_config = build_vllm_config(spec, namespace)
+        vllm_config_ready = vllm_config is not None
+
     values = helm_values_for_spec(name, namespace, spec)
     release = helm_release_name(name, namespace)
     helm_args = ["upgrade", "--install"]
@@ -525,7 +774,7 @@ async def reconcile(
     if not ok:
         msg = f"Helm failed: {output[:500]}"
         logger.error(msg)
-        set_status(name, namespace, "Failed", False, msg)
+        set_status(name, namespace, "Failed", False, msg, vllm_config_ready=vllm_config_ready)
         raise kopf.TemporaryError(msg, delay=60)
 
     # Step 4: Check vLLM tool calling in the namespace and any configured URLs
@@ -546,7 +795,8 @@ async def reconcile(
     # Pass ca_warnings only when clusterAdmin is enabled (None = no condition appended)
     ca_warnings_for_status = ca_warnings if spec.get("clusterAdmin", {}).get("enabled", False) else None
     set_status(name, namespace, "Running", True, msg, url=url,
-               tool_calling_warnings=tc_warnings, cluster_admin_warnings=ca_warnings_for_status)
+               tool_calling_warnings=tc_warnings, cluster_admin_warnings=ca_warnings_for_status,
+               vllm_config_ready=vllm_config_ready)
     logger.info("Reconcile complete: %s", msg)
 
 

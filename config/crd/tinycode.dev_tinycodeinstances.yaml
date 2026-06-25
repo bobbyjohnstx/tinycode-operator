@@ -93,6 +93,15 @@ spec:
                       description: Size of the PVC for project workspace files. Default 10Gi.
                       type: string
                       default: "10Gi"
+                    projectsAccessMode:
+                      description: |
+                        Access mode for projects PVC. ReadWriteOnce (default) or ReadWriteMany.
+                        Use ReadWriteMany for shared team workspaces with replicas > 1.
+                      type: string
+                      enum:
+                        - ReadWriteOnce
+                        - ReadWriteMany
+                      default: ReadWriteOnce
                     storageClassName:
                       description: StorageClass to use for PVCs. Defaults to cluster default.
                       type: string
@@ -210,6 +219,105 @@ spec:
                       description: oc CLI version to download. Defaults to "stable". Use a specific version like "4.17" for reproducibility.
                       type: string
                       default: "stable"
+                    kubeconfigNamespace:
+                      description: |
+                        Optional namespace where the kubeconfig Secret lives (for cross-namespace Secret mounting).
+                        If set and differs from instance namespace, the Secret will be copied to the instance namespace.
+                      type: string
+                    clusterRole:
+                      description: |
+                        Auto-provision a ServiceAccount with this ClusterRole instead of requiring a pre-created kubeconfig.
+                        Cannot be 'admin' or 'cluster-admin' (privilege escalation guard).
+                      type: string
+                      pattern: "^(?!admin$|cluster-admin$).*$"
+                vllm:
+                  description: |
+                    Array of vLLM endpoints to configure as tinycode providers. Each entry must
+                    have a name and URL. The operator auto-probes models and context limits unless
+                    you override them in the models field.
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - url
+                    properties:
+                      name:
+                        description: Provider name for this vLLM instance. Must be unique within the array.
+                        type: string
+                        pattern: "^[a-z0-9][a-z0-9-]*$"
+                        minLength: 1
+                        maxLength: 63
+                      url:
+                        description: Base URL of the vLLM instance (e.g., http://vllm-qwen.vllm:8000).
+                        type: string
+                        pattern: "^https?://"
+                      models:
+                        description: |
+                          Optional per-model overrides. Keys are model IDs, values contain
+                          contextLimit and/or outputLimit. Unspecified models are auto-probed.
+                        type: object
+                        additionalProperties:
+                          type: object
+                          properties:
+                            contextLimit:
+                              description: Override the auto-detected context limit for this model.
+                              type: integer
+                              minimum: 1024
+                            outputLimit:
+                              description: Override the auto-detected output limit for this model.
+                              type: integer
+                              minimum: 256
+                model:
+                  description: |
+                    Default model ID for the tinycode instance. Used as the model parameter in the
+                    generated config. Example: "qwen/Qwen2.5-Coder-32B-Instruct-AWQ".
+                  type: string
+                discovery:
+                  description: Cross-namespace vLLM discovery configuration.
+                  type: object
+                  properties:
+                    namespaces:
+                      description: |
+                        List of namespaces to search for vLLM services. Each entry may be a namespace
+                        name or "*" for all namespaces. The operator creates a ClusterRole with service
+                        get/list permissions and binds it to the tinycode instance.
+                      type: array
+                      maxItems: 50
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 63
+                git:
+                  description: |
+                    GitOps mode — clone a repository into /projects instead of using PVC storage.
+                    Mutually exclusive with storage.hostPath.
+                  type: object
+                  required:
+                    - url
+                  properties:
+                    url:
+                      description: Git repository URL (https, ssh, or git protocol).
+                      type: string
+                      pattern: "^(https?|ssh|git)://.*"
+                    branch:
+                      description: Branch to clone. Defaults to the repository's default branch.
+                      type: string
+                    credentialsSecret:
+                      description: |
+                        Name of a Secret in the same namespace containing git credentials.
+                        Expected keys: username, password (for HTTPS) or ssh-privatekey (for SSH).
+                      type: string
+                    pullOnRestart:
+                      description: Pull latest changes from the repository on pod restart. Default false.
+                      type: boolean
+                      default: false
+                    depth:
+                      description: Clone depth (--depth). Default 1 (shallow clone).
+                      type: integer
+                      minimum: 1
+                      default: 1
             status:
               description: TinycodeInstanceStatus defines the observed state.
               type: object

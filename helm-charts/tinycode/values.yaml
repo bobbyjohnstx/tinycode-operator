@@ -12,6 +12,7 @@ resources:
 storage:
   dataSize: "1Gi"
   projectsSize: "10Gi"
+  projectsAccessMode: "ReadWriteOnce"
   storageClassName: ""
   hostPath:
     enabled: false
@@ -37,9 +38,26 @@ clusterAdmin:
   kubeconfigSecretName: ""
   kubeconfigSecretKey: "kubeconfig"
   ocVersion: "stable"
+  kubeconfigNamespace: ""
+  clusterRole: ""
+
+git:
+  enabled: false
+  url: ""
+  branch: ""
+  credentialsSecret: ""
+  pullOnRestart: false
+  depth: 1
 
 nodeSelector: {}
 tolerations: []
+
+# vLLM provider config — set by the operator from spec.vllm
+configContent: ""
+
+# Discovery config — set by the operator from spec.discovery
+discovery:
+  namespaces: []
 
 # Internal — set by the operator from CR metadata
 instanceName: ""

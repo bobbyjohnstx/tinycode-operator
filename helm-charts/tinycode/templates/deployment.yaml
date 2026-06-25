@@ -24,6 +24,9 @@ spec:
         {{- if .Values.auth.passwordSecret }}
         checksum/secret: {{ .Values.auth.passwordSecret | sha256sum }}
         {{- end }}
+        {{- if .Values.configContent }}
+        checksum/config: {{ .Values.configContent | sha256sum }}
+        {{- end }}
     spec:
       serviceAccountName: {{ .Values.instanceName }}-tinycode
       # Let OpenShift assign the UID from the namespace's allowed range.
@@ -42,6 +45,50 @@ spec:
       {{- if .Values.tolerations }}
       tolerations:
         {{- toYaml .Values.tolerations | nindent 8 }}
+      {{- end }}
+
+      {{- if .Values.git.enabled }}
+      initContainers:
+        - name: git-clone
+          image: {{ .Values.image }}
+          imagePullPolicy: Always
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              if [ -d /projects/.git ]; then
+                echo "Repository already exists at /projects"
+                {{- if .Values.git.pullOnRestart }}
+                echo "Pulling latest changes..."
+                cd /projects
+                git pull --depth {{ .Values.git.depth }}
+                {{- else }}
+                echo "Skipping pull (pullOnRestart=false)"
+                {{- end }}
+              else
+                echo "Cloning repository..."
+                git clone --depth {{ .Values.git.depth }} \
+                  {{- if .Values.git.branch }}
+                  --branch {{ .Values.git.branch }} \
+                  {{- end }}
+                  {{ .Values.git.url }} /projects
+              fi
+          volumeMounts:
+            - name: projects
+              mountPath: /projects
+            {{- if .Values.git.credentialsSecret }}
+            - name: git-credentials
+              mountPath: /home/tinycode/.git-credentials
+              subPath: credentials
+              readOnly: true
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
       {{- end }}
 
       containers:
@@ -77,11 +124,17 @@ spec:
               value: "true"
             - name: TINYCODE_OC_VERSION
               value: {{ .Values.clusterAdmin.ocVersion | quote }}
+            {{- end }}
+            {{- if or .Values.clusterAdmin.enabled .Values.configContent }}
             - name: TINYCODE_CONFIG_CONTENT
               valueFrom:
                 configMapKeyRef:
-                  name: {{ .Values.instanceName }}-tinycode-cluster-admin
+                  name: {{ .Values.instanceName }}-tinycode-config
                   key: config.json
+            {{- end }}
+            {{- if .Values.discovery.namespaces }}
+            - name: TINYCODE_DISCOVERY_NAMESPACES
+              value: {{ join "," .Values.discovery.namespaces | quote }}
             {{- end }}
 
           resources:
@@ -139,9 +192,15 @@ spec:
             path: {{ .Values.storage.hostPath.path }}
             type: DirectoryOrCreate
         {{- else }}
+        # Use emptyDir for data volume when replicas > 1 (SQLite can't be shared)
+        {{- if gt (int .Values.replicas) 1 }}
+        - name: data
+          emptyDir: {}
+        {{- else }}
         - name: data
           persistentVolumeClaim:
             claimName: {{ .Values.instanceName }}-data
+        {{- end }}
         - name: projects
           persistentVolumeClaim:
             claimName: {{ .Values.instanceName }}-projects
@@ -151,4 +210,12 @@ spec:
           secret:
             secretName: {{ .Values.clusterAdmin.kubeconfigSecretName }}
             defaultMode: 0400
+        {{- end }}
+        {{- if .Values.git.enabled }}
+        {{- if .Values.git.credentialsSecret }}
+        - name: git-credentials
+          secret:
+            secretName: {{ .Values.git.credentialsSecret }}
+            defaultMode: 0400
+        {{- end }}
         {{- end }}

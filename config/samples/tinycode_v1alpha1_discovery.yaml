@@ -1,0 +1,40 @@
+---
+apiVersion: tinycode.dev/v1alpha1
+kind: TinycodeInstance
+metadata:
+  name: tinycode-discovery
+  namespace: tinycode
+spec:
+  replicas: 1
+  
+  # Cross-namespace vLLM service discovery
+  discovery:
+    namespaces:
+      - vllm
+      - ai-models
+      - openshift-ai
+  
+  # Declarative vLLM config for in-namespace services
+  vllm:
+    - name: local-vllm
+      url: http://vllm-service:8000
+  
+  model: "qwen/Qwen2.5-Coder-32B-Instruct-AWQ"
+  
+  storage:
+    dataSize: 1Gi
+    projectsSize: 10Gi
+  
+  auth:
+    passwordSecret: tinycode-password
+  
+  hostname: tinycode-discovery.apps.cluster.example.com
+
+# NOTE: The tinycode container's local-discovery.ts must be updated to:
+# 1. Read TINYCODE_DISCOVERY_NAMESPACES env var (comma-separated list or "*")
+# 2. Use the Kubernetes API to list services in those namespaces
+# 3. Probe http://<service>.<namespace>:<port>/v1/models for vLLM instances
+# 4. Add discovered services to the provider config at runtime
+#
+# This sample demonstrates the operator side of the feature. The tinycode
+# core changes are tracked separately.
