@@ -3,7 +3,6 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   name: tinycode-operator.v0.1.0
-  namespace: placeholder
   annotations:
     alm-examples: |-
       [
@@ -20,7 +19,7 @@ metadata:
       ]
     capabilities: Basic Install
     categories: Developer Tools, AI/Machine Learning
-    containerImage: quay.io/tinycode/operator:latest
+    containerImage: quay.io/tinycode/operator:v0.1.0
     description: |
       Deploys and manages tinycode AI coding assistant instances on OpenShift.
       Supports PVC storage, host filesystem access, and host shell execution
@@ -93,7 +92,7 @@ spec:
     - name: Source Code
       url: https://github.com/bobbyjohnstx/tinycode
   icon:
-    - base64data: ""
+    - base64data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==
       mediatype: image/png
   minKubeVersion: 1.25.0
   installModes:
@@ -163,7 +162,7 @@ spec:
                 containers:
                   - name: manager
                     image: quay.io/tinycode/operator:latest
-                    command: [python3.11, /app/main.py]
+                    command: [python3.11, -m, kopf, run, --all-namespaces, /app/main.py]
                     env:
                       - name: HELM_CHART_PATH
                         value: /helm-charts/tinycode

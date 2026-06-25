@@ -1,0 +1,14 @@
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: tinycode-catalog
+  namespace: openshift-marketplace
+spec:
+  sourceType: grpc
+  image: quay.io/tinycode/operator-catalog:v0.1.0
+  displayName: Tinycode Operator Catalog
+  publisher: tinycode community
+  updateStrategy:
+    registryPoll:
+      interval: 10m
