@@ -1,0 +1,51 @@
+---
+schema: olm.package
+name: tinycode-operator
+defaultChannel: alpha
+---
+schema: olm.channel
+name: alpha
+package: tinycode-operator
+entries:
+  - name: tinycode-operator.v0.1.0
+---
+schema: olm.bundle
+name: tinycode-operator.v0.1.0
+package: tinycode-operator
+image: quay.io/tinycode/operator-bundle:v0.1.0
+properties:
+  - type: olm.gvk
+    value:
+      group: tinycode.dev
+      kind: TinycodeInstance
+      version: v1alpha1
+  - type: olm.package
+    value:
+      packageName: tinycode-operator
+      version: 0.1.0
+  - type: olm.bundle.object
+    value:
+      data: |
+        apiVersion: operators.coreos.com/v1alpha1
+        kind: ClusterServiceVersion
+        metadata:
+          name: tinycode-operator.v0.1.0
+  - type: olm.csv.metadata
+    value:
+      displayName: Tinycode Operator
+      description: Deploys and manages tinycode AI coding assistant instances on OpenShift
+      version: 0.1.0
+      minKubeVersion: 1.25.0
+      provider:
+        name: tinycode community
+      maintainers:
+        - name: tinycode community
+          email: tinycode@example.com
+      keywords:
+        - ai
+        - coding-assistant
+        - llm
+        - tinycode
+      categories:
+        - Developer Tools
+        - AI/Machine Learning
