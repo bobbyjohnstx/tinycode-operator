@@ -16,7 +16,8 @@ labels:
 
 # Run as a specific non-root UID (matches container image user)
 runAsUser:
-  type: RunAsAny
+  type: MustRunAs
+  uid: 1001
 
 seLinuxContext:
   type: RunAsAny

@@ -25,7 +25,8 @@ labels:
   app.kubernetes.io/managed-by: tinycode-operator
 
 runAsUser:
-  type: RunAsAny
+  type: MustRunAs
+  uid: 1001
 
 seLinuxContext:
   type: RunAsAny

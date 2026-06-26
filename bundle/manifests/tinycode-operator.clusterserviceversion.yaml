@@ -162,7 +162,7 @@ spec:
                 containers:
                   - name: manager
                     image: quay.io/tinycode/operator:latest
-                    command: [python3.11, -m, kopf, run, --all-namespaces, /app/main.py]
+                    command: [python3.11, -m, kopf, run, --all-namespaces, --liveness=http://0.0.0.0:8081/healthz, /app/main.py]
                     env:
                       - name: HELM_CHART_PATH
                         value: /helm-charts/tinycode

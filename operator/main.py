@@ -11,7 +11,9 @@ Usage:
 """
 
 import asyncio
+import hashlib
 import ipaddress
+import json
 import logging
 import os
 import subprocess
@@ -59,6 +61,15 @@ apps_v1 = kubernetes.client.AppsV1Api()
 custom_api = kubernetes.client.CustomObjectsApi()
 rbac_v1 = kubernetes.client.RbacAuthorizationV1Api()
 
+_dynamic_client = None
+
+def get_dynamic_client():
+    """Return a cached DynamicClient instance."""
+    global _dynamic_client
+    if _dynamic_client is None:
+        _dynamic_client = kubernetes.dynamic.DynamicClient(kubernetes.client.ApiClient())
+    return _dynamic_client
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -85,7 +96,7 @@ def scc_name_for_spec(spec: dict) -> str:
     """Return the least-privilege SCC name for this instance spec."""
     if spec.get("shell", {}).get("enabled", False):
         return SCC_SHELL
-    if spec.get("storage", {}).get("hostPath", {}).get("enabled", False):
+    if spec.get("storage", {}).get("hostPath", {}).get("path"):
         return SCC_HOSTPATH
     return SCC_RESTRICTED
 
@@ -326,7 +337,7 @@ def ensure_scc_binding(service_account: str, namespace: str, scc_name: str):
     sa_name = f"{service_account}-tinycode"
     sa_ref = f"system:serviceaccount:{namespace}:{sa_name}"
 
-    dyn_client = kubernetes.dynamic.DynamicClient(kubernetes.client.ApiClient())
+    dyn_client = get_dynamic_client()
     scc_api = dyn_client.resources.get(
         api_version="security.openshift.io/v1",
         kind="SecurityContextConstraints",
@@ -350,7 +361,7 @@ def remove_scc_binding(name: str, namespace: str):
     """Remove the SA from all tinycode SCCs on instance deletion."""
     sa_ref = f"system:serviceaccount:{namespace}:{name}-tinycode"
     try:
-        dyn_client = kubernetes.dynamic.DynamicClient(kubernetes.client.ApiClient())
+        dyn_client = get_dynamic_client()
         scc_api = dyn_client.resources.get(
             api_version="security.openshift.io/v1",
             kind="SecurityContextConstraints",
@@ -599,7 +610,7 @@ def validate_cluster_admin(name: str, namespace: str, spec: dict) -> list[dict]:
 def set_status(name: str, namespace: str, phase: str, ready: bool, message: str,
                url: str = "", tool_calling_warnings: list | None = None,
                cluster_admin_warnings: list | None = None,
-               vllm_config_ready: bool | None = None):
+               vllm_config_ready: bool | None = None, **kwargs):
     """Patch the TinycodeInstance status."""
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     conditions = [
@@ -671,6 +682,7 @@ def set_status(name: str, namespace: str, phase: str, ready: bool, message: str,
             "phase": phase,
             "url": url,
             "conditions": conditions,
+            "observedGeneration": kwargs.get("body", {}).get("metadata", {}).get("generation", 0),
         }
     }
     try:
@@ -689,9 +701,7 @@ def set_status(name: str, namespace: str, phase: str, ready: bool, message: str,
 def get_route_url(name: str, namespace: str) -> str:
     """Return the external URL of the tinycode Route, if it exists."""
     try:
-        dyn_client = kubernetes.dynamic.DynamicClient(
-            kubernetes.client.ApiClient()
-        )
+        dyn_client = get_dynamic_client()
         route_api = dyn_client.resources.get(
             api_version="route.openshift.io/v1", kind="Route"
         )
@@ -728,7 +738,7 @@ async def reconcile(
     3. Fetch the Route URL and update status.
     """
     logger.info("Reconciling TinycodeInstance %s/%s", namespace, name)
-    set_status(name, namespace, "Deploying", False, "Reconciliation in progress")
+    set_status(name, namespace, "Deploying", False, "Reconciliation in progress", **kwargs)
 
     # Step 1: Validate git spec
     git_warnings = await asyncio.get_event_loop().run_in_executor(
@@ -739,7 +749,7 @@ async def reconcile(
         for w in git_errors:
             logger.error("git validation error: %s", w["message"])
         msg = f"git validation failed: {git_errors[0]['message']}"
-        set_status(name, namespace, "Failed", False, msg)
+        set_status(name, namespace, "Failed", False, msg, **kwargs)
         raise kopf.PermanentError(msg)
     if git_warnings:
         for w in git_warnings:
@@ -754,7 +764,7 @@ async def reconcile(
         for w in workspace_errors:
             logger.error("shared workspace validation error: %s", w["message"])
         msg = f"shared workspace validation failed: {workspace_errors[0]['message']}"
-        set_status(name, namespace, "Failed", False, msg)
+        set_status(name, namespace, "Failed", False, msg, **kwargs)
         raise kopf.PermanentError(msg)
     if workspace_warnings:
         for w in workspace_warnings:
@@ -769,7 +779,7 @@ async def reconcile(
         for w in ca_errors:
             logger.error("clusterAdmin validation error: %s", w["message"])
         msg = f"clusterAdmin validation failed: {ca_errors[0]['message']}"
-        set_status(name, namespace, "Failed", False, msg, cluster_admin_warnings=ca_warnings)
+        set_status(name, namespace, "Failed", False, msg, cluster_admin_warnings=ca_warnings, **kwargs)
         raise kopf.PermanentError(msg)
     if ca_warnings:
         for w in ca_warnings:
@@ -783,7 +793,7 @@ async def reconcile(
     except Exception as exc:
         msg = f"Failed to bind SCC {scc}: {exc}"
         logger.error(msg)
-        set_status(name, namespace, "Failed", False, msg)
+        set_status(name, namespace, "Failed", False, msg, **kwargs)
         raise kopf.PermanentError(msg) from exc
 
     # Step 3: Build vLLM config and Helm values
@@ -795,6 +805,34 @@ async def reconcile(
 
     values = helm_values_for_spec(name, namespace, spec)
     release = helm_release_name(name, namespace)
+
+    # Compute hash of Helm values to skip no-op upgrades
+    values_hash = hashlib.sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()[:16]
+
+    # Check if spec has changed
+    try:
+        cr = custom_api.get_namespaced_custom_object(
+            group=GROUP, version=VERSION, namespace=namespace, plural=PLURAL, name=name
+        )
+        current_hash = cr.get("metadata", {}).get("annotations", {}).get("tinycode.dev/values-hash", "")
+        if current_hash == values_hash:
+            logger.info("Spec unchanged (hash=%s), skipping helm upgrade", values_hash)
+            # Still update status in case route or other external state changed
+            url = get_route_url(name, namespace)
+            tc_warnings = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: check_vllm_tool_calling(namespace)
+            )
+            msg = f"TinycodeInstance {name} unchanged"
+            if url:
+                msg += f". URL: {url}"
+            ca_warnings_for_status = ca_warnings if spec.get("clusterAdmin", {}).get("enabled", False) else None
+            set_status(name, namespace, "Running", True, msg, url=url,
+                       tool_calling_warnings=tc_warnings, cluster_admin_warnings=ca_warnings_for_status,
+                       vllm_config_ready=vllm_config_ready, **kwargs)
+            return
+    except Exception:
+        pass  # First reconcile or annotation missing — proceed with upgrade
+
     helm_args = ["upgrade", "--install"]
 
     ok, output = await asyncio.get_event_loop().run_in_executor(
@@ -803,7 +841,7 @@ async def reconcile(
     if not ok:
         msg = f"Helm failed: {output[:500]}"
         logger.error(msg)
-        set_status(name, namespace, "Failed", False, msg, vllm_config_ready=vllm_config_ready)
+        set_status(name, namespace, "Failed", False, msg, vllm_config_ready=vllm_config_ready, **kwargs)
         raise kopf.TemporaryError(msg, delay=60)
 
     # Step 4: Check vLLM tool calling in the namespace and any configured URLs
@@ -825,7 +863,21 @@ async def reconcile(
     ca_warnings_for_status = ca_warnings if spec.get("clusterAdmin", {}).get("enabled", False) else None
     set_status(name, namespace, "Running", True, msg, url=url,
                tool_calling_warnings=tc_warnings, cluster_admin_warnings=ca_warnings_for_status,
-               vllm_config_ready=vllm_config_ready)
+               vllm_config_ready=vllm_config_ready, **kwargs)
+
+    # Update values hash annotation after successful reconcile
+    try:
+        custom_api.patch_namespaced_custom_object(
+            group=GROUP,
+            version=VERSION,
+            namespace=namespace,
+            plural=PLURAL,
+            name=name,
+            body={"metadata": {"annotations": {"tinycode.dev/values-hash": values_hash}}},
+        )
+    except Exception as exc:
+        logger.warning("Failed to update values-hash annotation: %s", exc)
+
     logger.info("Reconcile complete: %s", msg)
 
 
