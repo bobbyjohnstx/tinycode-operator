@@ -160,6 +160,9 @@ spec:
             # /projects — user workspace files
             - name: projects
               mountPath: /projects
+              {{- if .Values.storage.hostPath.enabled }}
+              readOnly: {{ .Values.storage.hostPath.readOnly | default false }}
+              {{- end }}
             {{- if .Values.clusterAdmin.enabled }}
             - name: kubeconfig-vol
               mountPath: /home/tinycode/.kube/config

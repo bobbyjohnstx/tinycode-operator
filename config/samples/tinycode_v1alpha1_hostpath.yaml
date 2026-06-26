@@ -8,6 +8,10 @@
 # SECURITY: The host path at /home/developer/projects will be writable
 # by the tinycode container (UID 1000). Ensure the host directory
 # permissions allow this UID.
+#
+# EPHEMERAL DATA: In hostPath mode, session data (SQLite DB, config) uses
+# emptyDir and is lost on pod restart. Only the /projects workspace persists
+# via hostPath.
 apiVersion: tinycode.dev/v1alpha1
 kind: TinycodeInstance
 metadata:

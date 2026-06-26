@@ -15,9 +15,12 @@ ARG HELM_VERSION=v3.17.3
 RUN microdnf install -y tar gzip shadow-utils python3.11 && \
     curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
       -o /tmp/helm.tar.gz && \
+    curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz.sha256sum" \
+      -o /tmp/helm.sha256 && \
+    cd /tmp && sha256sum -c helm.sha256 && \
     tar -xzf /tmp/helm.tar.gz -C /tmp && \
     install -m 755 /tmp/linux-amd64/helm /usr/local/bin/helm && \
-    rm -rf /tmp/helm* && \
+    rm -rf /tmp/helm* /tmp/linux-amd64 && \
     microdnf remove -y tar gzip shadow-utils && \
     microdnf clean all
 
