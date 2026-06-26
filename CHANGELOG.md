@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- hostPath SCC selection bug (checked `enabled` instead of `path`)
+- readOnly hostPath applied in Helm deployment template
+- SCC runAsUser enforced as MustRunAs UID 1001 (restricted + hostpath SCCs)
+- observedGeneration set in CR status updates
+- Cluster-wide secret RBAC reduced to get-only (removed list/watch)
+- Helm binary download checksum verification
+- Spec hash skip for no-op Helm upgrades
+- DynamicClient reuse (cached instead of per-call)
+- CSV liveness flag matches Dockerfile ENTRYPOINT
+
+### Added
+- 44 unit tests (pytest) covering pure functions and validation logic
+- Dependabot configuration for GitHub Actions and pip
+
 ## [0.1.0] — 2026-06-26
 
 Initial public release.
