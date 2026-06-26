@@ -42,12 +42,12 @@ jobs:
         run: |
           for f in config/samples/*.yaml; do
             echo "Validating $f..."
-            python -c "import yaml; yaml.safe_load(open('$f'))"
+            python -c "import yaml; list(yaml.safe_load_all(open('$f')))"
           done
 
       - name: Validate bundle
         run: |
           for f in bundle/manifests/*.yaml; do
             echo "Validating $f..."
-            python -c "import yaml; yaml.safe_load(open('$f'))"
+            python -c "import yaml; list(yaml.safe_load_all(open('$f')))"
           done
