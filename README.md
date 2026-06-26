@@ -136,19 +136,37 @@ All SCCs run as UID 1001 (non-root), GID 0, with `allowPrivilegedContainer: fals
 | `spec.resources.requests.memory` | string | `512Mi` | Memory request |
 | `spec.storage.dataSize` | string | `1Gi` | PVC size for SQLite DB and config |
 | `spec.storage.projectsSize` | string | `10Gi` | PVC size for project workspace |
+| `spec.storage.projectsAccessMode` | string | `ReadWriteOnce` | Access mode for projects PVC (ReadWriteOnce or ReadWriteMany for multi-replica shared workspaces) |
 | `spec.storage.storageClassName` | string | cluster default | StorageClass for PVCs |
-| `spec.storage.hostPath.path` | string | — | Absolute host path to mount at `/projects` |
-| `spec.storage.hostPath.readOnly` | bool | `false` | Mount host path read-only |
-| `spec.hostname` | string | auto | Custom Route hostname |
+| `spec.storage.hostPath.path` | string | — | Absolute path on host node to mount at `/projects` (mutually exclusive with `spec.git.url`) |
+| `spec.storage.hostPath.readOnly` | bool | `false` | Mount host path as read-only |
+| `spec.hostname` | string | auto | Custom hostname for the tinycode Route |
 | `spec.tlsTermination` | string | `edge` | Route TLS mode: `edge`, `passthrough`, or `reencrypt` |
 | `spec.ollama.enabled` | bool | `false` | Deploy an Ollama sidecar |
-| `spec.ollama.host` | string | — | External Ollama URL (when `enabled` is false) |
+| `spec.ollama.host` | string | — | External Ollama host URL (when `enabled` is false) |
 | `spec.ollama.models` | array | — | Ollama model names to pre-pull on startup |
 | `spec.auth.passwordSecret` | string | — | Secret name containing `TINYCODE_SERVER_PASSWORD` |
-| `spec.shell.enabled` | bool | `false` | Enable host shell access (grants `hostPID`) |
+| `spec.shell.enabled` | bool | `false` | Enable host shell access (grants `hostPID` for nsenter-based commands) |
 | `spec.shell.allowedCommands` | array | — | Restrict shell commands (future admission webhook enforcement) |
 | `spec.nodeSelector` | object | — | Node selection constraints |
 | `spec.tolerations` | array | — | Pod tolerations |
+| `spec.model` | string | — | Default model ID (e.g., `qwen/Qwen2.5-Coder-32B-Instruct-AWQ`). Written to generated config. |
+| `spec.clusterAdmin.enabled` | bool | `false` | Enable cluster-admin mode (mounts kubeconfig, downloads oc CLI) |
+| `spec.clusterAdmin.kubeconfigSecretName` | string | — | Secret name containing kubeconfig (required when `enabled=true`) |
+| `spec.clusterAdmin.kubeconfigSecretKey` | string | `kubeconfig` | Key within the Secret containing the kubeconfig file |
+| `spec.clusterAdmin.ocVersion` | string | `stable` | oc CLI version (e.g., `4.17` for reproducibility) |
+| `spec.clusterAdmin.kubeconfigNamespace` | string | — | Namespace where kubeconfig Secret resides (for cross-namespace mounting) |
+| `spec.clusterAdmin.clusterRole` | string | — | Auto-provision ServiceAccount with this ClusterRole (cannot be `admin` or `cluster-admin`) |
+| `spec.vllm` | array | — | Array of vLLM endpoints to configure as tinycode providers |
+| `spec.vllm[].name` | string | — | Provider name (must be unique, lowercase alphanumeric + dashes) |
+| `spec.vllm[].url` | string | — | Base URL of vLLM instance (e.g., `http://vllm-qwen.vllm:8000`) |
+| `spec.vllm[].models` | object | — | Per-model overrides with `contextLimit` and `outputLimit` (auto-probed if omitted) |
+| `spec.discovery.namespaces` | array | — | Namespaces to search for vLLM services (enables cross-namespace discovery) |
+| `spec.git.url` | string | — | Git repository URL to clone into `/projects` (mutually exclusive with `spec.storage.hostPath.path`) |
+| `spec.git.branch` | string | — | Branch to clone (defaults to repository's default branch) |
+| `spec.git.credentialsSecret` | string | — | Secret name with git credentials (keys: `username`/`password` for HTTPS, `ssh-privatekey` for SSH) |
+| `spec.git.pullOnRestart` | bool | `false` | Pull latest changes from repository on pod restart |
+| `spec.git.depth` | integer | `1` | Clone depth (shallow clone by default) |
 
 ## Status
 
