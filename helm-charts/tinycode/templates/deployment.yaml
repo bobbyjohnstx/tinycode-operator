@@ -50,7 +50,7 @@ spec:
       {{- if .Values.git.enabled }}
       initContainers:
         - name: git-clone
-          image: {{ .Values.image }}
+          image: {{ .Values.image | quote }}
           imagePullPolicy: Always
           command:
             - /bin/sh
@@ -70,9 +70,9 @@ spec:
                 echo "Cloning repository..."
                 git clone --depth {{ .Values.git.depth }} \
                   {{- if .Values.git.branch }}
-                  --branch {{ .Values.git.branch }} \
+                  --branch {{ .Values.git.branch | quote }} \
                   {{- end }}
-                  {{ .Values.git.url }} /projects
+                  {{ .Values.git.url | quote }} /projects
               fi
           volumeMounts:
             - name: projects
@@ -93,7 +93,7 @@ spec:
 
       containers:
         - name: tinycode
-          image: {{ .Values.image }}
+          image: {{ .Values.image | quote }}
           imagePullPolicy: Always
           # entrypoint.sh starts tinycode in web mode (entrypoint.sh:35)
           # No command override — use the image's ENTRYPOINT
@@ -113,7 +113,7 @@ spec:
             {{- end }}
             {{- if .Values.ollama.host }}
             - name: TINYCODE_OLLAMA_HOST
-              value: {{ .Values.ollama.host }}
+              value: {{ .Values.ollama.host | quote }}
             {{- end }}
             - name: TINYCODE_DISABLE_LSP_DOWNLOAD
               value: "1"
@@ -189,7 +189,7 @@ spec:
           emptyDir: {}
         - name: projects
           hostPath:
-            path: {{ .Values.storage.hostPath.path }}
+            path: {{ .Values.storage.hostPath.path | quote }}
             type: DirectoryOrCreate
         {{- else }}
         # Use emptyDir for data volume when replicas > 1 (SQLite can't be shared)

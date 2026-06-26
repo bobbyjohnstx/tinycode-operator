@@ -53,6 +53,7 @@ spec:
                   description: Container image for tinycode. Defaults to quay.io/bjohns/tinycode-container:latest.
                   type: string
                   default: "quay.io/bjohns/tinycode-container:latest"
+                  pattern: "^(quay\\.io/bjohns/|ghcr\\.io/bjohns/|registry\\.access\\.redhat\\.com/)[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$"
                 replicas:
                   description: Number of tinycode server replicas. Defaults to 1.
                   type: integer
@@ -229,7 +230,7 @@ spec:
                         Auto-provision a ServiceAccount with this ClusterRole instead of requiring a pre-created kubeconfig.
                         Cannot be 'admin' or 'cluster-admin' (privilege escalation guard).
                       type: string
-                      pattern: "^(?!admin$|cluster-admin$).*$"
+                      pattern: "^(view|edit|tinycode-[a-z0-9-]+)$"
                 vllm:
                   description: |
                     Array of vLLM endpoints to configure as tinycode providers. Each entry must
@@ -300,10 +301,12 @@ spec:
                     url:
                       description: Git repository URL (https, ssh, or git protocol).
                       type: string
-                      pattern: "^(https?|ssh|git)://.*"
+                      pattern: "^(https?|ssh|git)://[a-zA-Z0-9_./@:~%+=-]+$"
                     branch:
                       description: Branch to clone. Defaults to the repository's default branch.
                       type: string
+                      pattern: "^[a-zA-Z0-9_./-]+$"
+                      maxLength: 255
                     credentialsSecret:
                       description: |
                         Name of a Secret in the same namespace containing git credentials.

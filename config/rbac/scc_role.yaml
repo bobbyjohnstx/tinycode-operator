@@ -19,3 +19,8 @@ rules:
       - tinycode-shell
     verbs:
       - use
+      - get
+      - list
+      - watch
+      - patch
+      - update

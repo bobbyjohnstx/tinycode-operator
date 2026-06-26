@@ -11,6 +11,7 @@ Usage:
 """
 
 import asyncio
+import ipaddress
 import logging
 import os
 import subprocess
@@ -61,6 +62,25 @@ rbac_v1 = kubernetes.client.RbacAuthorizationV1Api()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def validate_vllm_url(url: str) -> bool:
+    """Reject URLs targeting metadata endpoints or loopback."""
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname:
+        return False
+    BLOCKED_HOSTS = {"169.254.169.254", "metadata.google.internal", "100.100.100.200"}
+    if hostname in BLOCKED_HOSTS:
+        return False
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_loopback or ip.is_link_local:
+            return False
+    except ValueError:
+        pass
+    return True
+
+
 def scc_name_for_spec(spec: dict) -> str:
     """Return the least-privilege SCC name for this instance spec."""
     if spec.get("shell", {}).get("enabled", False):
@@ -83,6 +103,10 @@ def probe_vllm_models(url: str, timeout: int = 5) -> list[dict]:
     url = url.rstrip("/")
     if not url.endswith("/v1"):
         url = f"{url}/v1"
+
+    if not validate_vllm_url(url):
+        log.warning("Rejected vLLM URL (metadata endpoint or loopback): %s", url)
+        return []
 
     models_url = f"{url}/models"
     try:
@@ -382,7 +406,10 @@ def check_vllm_tool_calling(namespace: str) -> list[dict]:
         ports = [p.port for p in (svc.spec.ports or [])] or [8080, 8000, 80]
 
         for port in ports:
-            models_url = f"http://{cluster_ip}:{port}/v1/models"
+            svc_url = f"http://{cluster_ip}:{port}/v1"
+            if not validate_vllm_url(svc_url):
+                continue
+            models_url = f"{svc_url}/models"
             try:
                 req = urllib.request.Request(models_url, headers={"Accept": "application/json"})
                 with urllib.request.urlopen(req, timeout=2) as resp:
@@ -460,6 +487,7 @@ def validate_git_spec(name: str, namespace: str, spec: dict) -> list[dict]:
     creds_secret = git.get("credentialsSecret", "")
     if creds_secret:
         try:
+            log.info(f"Reading Secret '{creds_secret}' in namespace '{namespace}' for git_credentials")
             secret = core_v1.read_namespaced_secret(creds_secret, namespace)
             # Check for expected keys
             data_keys = set((secret.data or {}).keys())
@@ -523,6 +551,7 @@ def validate_cluster_admin(name: str, namespace: str, spec: dict) -> list[dict]:
         return warnings
 
     try:
+        log.info(f"Reading Secret '{secret_name}' in namespace '{namespace}' for kubeconfig_validation")
         secret = core_v1.read_namespaced_secret(secret_name, namespace)
     except kubernetes.client.exceptions.ApiException as exc:
         if exc.status == 404:
@@ -562,7 +591,7 @@ def validate_cluster_admin(name: str, namespace: str, spec: dict) -> list[dict]:
                                f"See docs/rhoai-cluster-setup.md for the helper command."
                 })
     except Exception as exc:
-        warnings.append({"type": "warning", "message": f"Could not parse kubeconfig in Secret '{secret_name}': {exc}"})
+        warnings.append({"type": "warning", "message": f"Could not parse kubeconfig in Secret '{secret_name}': {type(exc).__name__} — verify the Secret contains valid YAML"})
 
     return warnings
 
