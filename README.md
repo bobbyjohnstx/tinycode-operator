@@ -1,5 +1,7 @@
 # tinycode-operator
 
+[![CI](https://github.com/bobbyjohnstx/tinycode-operator/actions/workflows/ci.yml/badge.svg)](https://github.com/bobbyjohnstx/tinycode-operator/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/bobbyjohnstx/tinycode-operator)](https://github.com/bobbyjohnstx/tinycode-operator/releases)
+
 An OpenShift Operator that installs and manages **tinycode** AI coding assistant instances on an OpenShift cluster.
 
 ## Overview
@@ -449,3 +451,7 @@ tinycode-operator/
 |---------|-------------|------------|
 | [tinycode](https://github.com/bobbyjohnstx/tinycode) | Core AI coding assistant — server, TUI, web UI | `github.com/bobbyjohnstx/tinycode` |
 | [tinycode-container](https://github.com/bobbyjohnstx/tinycode-container) | Container image packaging tinycode + oh-my-tiny | `github.com/bobbyjohnstx/tinycode-container` |
+
+## License
+
+MIT — see [LICENSE](LICENSE).
