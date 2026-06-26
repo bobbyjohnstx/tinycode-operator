@@ -162,11 +162,28 @@ All SCCs run as UID 1001 (non-root), GID 0, with `allowPrivilegedContainer: fals
 | `spec.vllm[].url` | string | — | Base URL of vLLM instance (e.g., `http://vllm-qwen.vllm:8000`) |
 | `spec.vllm[].models` | object | — | Per-model overrides with `contextLimit` and `outputLimit` (auto-probed if omitted) |
 | `spec.discovery.namespaces` | array | — | Namespaces to search for vLLM services (enables cross-namespace discovery) |
-| `spec.git.url` | string | — | Git repository URL to clone into `/projects` (mutually exclusive with `spec.storage.hostPath.path`) |
-| `spec.git.branch` | string | — | Branch to clone (defaults to repository's default branch) |
+| `spec.git.url` | string | — | Git repository URL to clone into `/projects` (validated against URL scheme; mutually exclusive with `spec.storage.hostPath.path`) |
+| `spec.git.branch` | string | — | Branch to clone (validated to prevent injection); defaults to repository's default branch |
 | `spec.git.credentialsSecret` | string | — | Secret name with git credentials (keys: `username`/`password` for HTTPS, `ssh-privatekey` for SSH) |
 | `spec.git.pullOnRestart` | bool | `false` | Pull latest changes from repository on pod restart |
 | `spec.git.depth` | integer | `1` | Clone depth (shallow clone by default) |
+
+### CRD Security Constraints
+
+The `TinycodeInstance` CRD enforces validation patterns for security-sensitive fields:
+
+- **Image Registry Restriction** (`spec.image`): Must be from explicitly allowed registries (defaults to quay.io, ghcr.io). Prevents arbitrary image injection.
+- **Git URL Validation** (`spec.git.url`): Validated to ensure proper URL format. Only `https://` and `git://` schemes allowed; prevents command injection.
+- **Git Branch Validation** (`spec.git.branch`): Alphanumeric, `/`, `-`, `.`, and `_` only; prevents shell injection during clone operations.
+- **ClusterRole Allowlist** (`spec.clusterAdmin.clusterRole`): Cannot be `admin`, `cluster-admin`, or any ClusterRole that would escalate privileges. Prevents privilege escalation in cluster-admin mode.
+- **SSRF Prevention** (`spec.vllm[].url`): URL validation prevents internal service discovery attacks. Private IP ranges and localhost are allowed by default but can be restricted via NetworkPolicy.
+
+### Security Features
+
+- **NetworkPolicy**: Recommended to restrict ingress/egress traffic to required services
+- **Read-Only Root Filesystem**: Can be enabled in PodSecurityPolicy via `readOnlyRootFilesystem: true` for additional hardening
+- **Security Context**: All pods run as UID 1001 (non-root) with dropped Linux capabilities (ALL dropped by default)
+- **Audit Logging**: Operator actions are logged to cluster audit logs for compliance tracking
 
 ## Status
 
