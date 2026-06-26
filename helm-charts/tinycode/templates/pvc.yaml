@@ -16,7 +16,7 @@ spec:
     requests:
       storage: {{ .Values.storage.dataSize }}
   {{- if .Values.storage.storageClassName }}
-  storageClassName: {{ .Values.storage.storageClassName }}
+  storageClassName: {{ .Values.storage.storageClassName | quote }}
   {{- end }}
 ---
 apiVersion: v1
@@ -35,6 +35,6 @@ spec:
     requests:
       storage: {{ .Values.storage.projectsSize }}
   {{- if .Values.storage.storageClassName }}
-  storageClassName: {{ .Values.storage.storageClassName }}
+  storageClassName: {{ .Values.storage.storageClassName | quote }}
   {{- end }}
 {{- end }}

@@ -1,0 +1,16 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.instanceName }}-tinycode
+  namespace: {{ .Values.instanceNamespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Values.instanceName }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 4096
+          protocol: TCP
