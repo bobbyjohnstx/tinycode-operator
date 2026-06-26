@@ -45,7 +45,7 @@ cd operator && kopf run --standalone main.py
 
 ## Operator Architecture
 
-The operator uses [kopf](https://kopf.readthedocs.io) to watch `TinycodeSession` and `TinycodeAgent` custom resources and reconcile them into Kubernetes `Deployment`, `Service`, and `ConfigMap` objects.
+The operator uses [kopf](https://kopf.readthedocs.io) to watch `TinycodeInstance` custom resources and reconcile them into Kubernetes `Deployment`, `Service`, and `ConfigMap` objects.
 
 ## Testing Changes
 
