@@ -249,62 +249,69 @@ oc describe tinycodeinstance my-tinycode -n tinycode-dev
 #                                 --tool-call-parser. See docs/vllm-tool-calling.md
 ```
 
-### Context window check (planned — operator issue #1)
+### Context window check
 
-Currently the operator does **not** check context window size. This will be added
-when the declarative vLLM config in the `TinycodeInstance` spec is implemented
-(tinycode-operator issue #1). At that point, the operator will warn when
-`max_model_len < 16384` since anything smaller causes compaction loops for typical
-coding sessions.
+The operator probes `/v1/models` on vLLM services and validates `max_model_len >= 16384`.
+If the context window is too small, it sets a `ContextWindowWarning` condition on the
+TinycodeInstance:
 
-**Until then:** ensure `--max-model-len` is set correctly before deploying
-tinycode instances, using the verification command in step 2 above.
+```bash
+oc describe tinycodeinstance my-tinycode -n tinycode-dev
+
+# Conditions:
+#   Type                    Status  Reason
+#   ----                    ------  ------
+#   Ready                   True    ReconcileSuccess
+#   ContextWindowWarning    True    VllmContextWindowTooSmall
+#                                   vLLM model qwen3-30b has max_model_len=8192,
+#                                   recommended minimum is 16384 to prevent
+#                                   compaction loops.
+```
 
 ---
 
-## 5. Recommended tinycode Configuration
+## 5. Declarative vLLM Configuration
 
-After the operator deploys a TinycodeInstance, update the model config to match
-the deployed models. Until operator issue #1 is implemented, this is a manual step:
+Use `spec.vllm` to configure vLLM endpoints declaratively in the TinycodeInstance CR. The operator auto-probes models and generates provider config.
 
-```bash
-POD=$(oc get pods -n tinycode-dev --no-headers | awk 'NR==1{print $1}')
-
-oc exec -n tinycode-dev "$POD" -- sh -c 'cat > /home/tinycode/.config/tinycode/tinycode.json << '"'"'EOF'"'"'
-{
-  "model": "vllm-qwen3/qwen3-30b",
-  "small_model": "vllm-llama/llama-32-3b-instruct",
-  "provider": {
-    "vllm-qwen3": {
-      "npm": "@ai-sdk/openai-compatible",
-      "options": {
-        "baseURL": "http://qwen3-30b.qwen3.svc.cluster.local:8080/v1",
-        "name": "vllm-qwen3"
-      },
-      "models": {
-        "qwen3-30b": {
-          "limit": { "context": 26000, "output": 4000 }
-        }
-      }
-    },
-    "vllm-llama": {
-      "npm": "@ai-sdk/openai-compatible",
-      "options": {
-        "baseURL": "http://llama-32-3b.llama.svc.cluster.local:8080/v1",
-        "name": "vllm-llama"
-      },
-      "models": {
-        "llama-32-3b-instruct": {
-          "limit": { "context": 14000, "output": 2000 }
-        }
-      }
-    }
-  }
-}
-EOF'
-
-oc delete pod -n tinycode-dev --all
+```yaml
+apiVersion: tinycode.dev/v1alpha1
+kind: TinycodeInstance
+metadata:
+  name: my-tinycode
+  namespace: tinycode-dev
+spec:
+  vllm:
+    - name: vllm-qwen3
+      url: http://qwen3-30b.qwen3.svc.cluster.local:8080
+      models:
+        qwen3-30b:
+          contextLimit: 26000
+          outputLimit: 4000
+    - name: vllm-llama
+      url: http://llama-32-3b.llama.svc.cluster.local:8080
+  model: "vllm-qwen3/qwen3-30b"
 ```
 
-This step will be automated by tinycode-operator issue #1 (declarative vLLM config
-in the TinycodeInstance spec).
+The operator:
+1. Probes `/v1/models` on each vLLM URL to auto-detect available models
+2. Applies 80/20 split for context/output limits when not explicitly set
+3. Generates tinycode provider config and delivers it via ConfigMap
+4. Automatically restarts the pod when `spec.vllm` changes
+
+## 6. Cross-Namespace Discovery (Optional)
+
+If vLLM services are deployed in multiple namespaces (common on RHOAI), use `spec.discovery.namespaces` to enable cross-namespace discovery:
+
+```yaml
+spec:
+  discovery:
+    namespaces:
+      - qwen3
+      - llama
+      - openshift-ai
+```
+
+The operator creates a ClusterRole with service get/list permissions and binds it to the tinycode ServiceAccount. Services in discovered namespaces must have the `tinycode.dev/discover: vllm` annotation to be probed.
+
+Use `["*"]` for cluster-wide discovery (all namespaces). This is convenient but exposes service metadata across namespace boundaries.

@@ -44,13 +44,53 @@ must stay in sync with these values.
 
 ## Environment Variables
 
+### Core
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TINYCODE_SERVER_PASSWORD` | *(none — unauthenticated)* | Server auth password |
-| `TINYCODE_OLLAMA_HOST` | `http://host.containers.internal:11434` | Ollama endpoint |
 | `TINYCODE_PORT` | `4096` | Override server port |
-| `TINYCODE_DISABLE_LSP_DOWNLOAD` | `1` (recommended in containers) | Skip LSP binary auto-download |
 | `TINYCODE_SESSION_ID` | *(none)* | Attach to existing session on start |
+| `TINYCODE_WORKDIR` | `/projects` | Working directory for tinycode |
+
+### LLM Providers
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TINYCODE_OLLAMA_HOST` | `http://host.containers.internal:11434` | Ollama endpoint |
+| `TINYCODE_VLLM_URL` | *(none)* | vLLM endpoint (bridged to TINYCODE_VLLM_HOST) |
+| `TINYCODE_VLLM_HOST` | *(none)* | vLLM endpoint (native env var) |
+| `TINYCODE_VLLM_MODEL` | *(none)* | Default vLLM model (written to config.json) |
+| `OPENROUTER_API_KEY` | *(none)* | OpenRouter API key |
+
+### GitOps
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TINYCODE_GIT_REPO` | *(none)* | Git repository URL to clone into /projects |
+| `TINYCODE_GIT_BRANCH` | *(default branch)* | Git branch to clone/pull |
+| `TINYCODE_GIT_PULL_ON_RESTART` | `false` | Pull latest on container restart |
+| `TINYCODE_GIT_CLONE_TIMEOUT` | `300` | Timeout in seconds for git clone |
+
+### Cluster Management
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TINYCODE_CLUSTER_ADMIN` | *(none)* | Enable cluster-admin mode (downloads oc CLI) |
+| `TINYCODE_OC_VERSION` | `stable` | OpenShift CLI version (stable/latest/fast/candidate/x.y.z) |
+
+### Auto-detection
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TINYCODE_AUTO_DETECT` | `true` | Enable in-cluster auto-detection |
+| `TINYCODE_DISABLE_LSP_DOWNLOAD` | `1` (in-cluster) | Skip LSP binary auto-download |
+
+### Operator-injected (set by tinycode-operator)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TINYCODE_CONFIG_CONTENT` | *(none)* | JSON config content (alternative to ConfigMap mount) |
+| `TINYCODE_DISCOVERY_NAMESPACES` | *(none)* | Space-separated list of namespaces for vLLM discovery |
+
+### Output (set by entrypoint)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TINYCODE_CLUSTER_TYPE` | *(auto-detected)* | Cluster type: `openshift` or `kubernetes` |
 
 ## Startup Behaviour
 
