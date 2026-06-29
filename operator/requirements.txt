@@ -1,3 +1,4 @@
-kopf==1.37.2
-kubernetes==29.0.0
+kopf==1.44.6
+kubernetes==36.0.2
+urllib3>=2.6.0
 PyYAML==6.0.3
