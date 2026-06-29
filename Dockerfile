@@ -13,14 +13,15 @@ FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 # Install helm
 ARG HELM_VERSION=v3.17.3
 RUN microdnf install -y tar gzip shadow-utils python3.11 && \
-    curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
-      -o /tmp/helm.tar.gz && \
-    curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz.sha256sum" \
-      -o /tmp/helm.sha256 && \
-    cd /tmp && sha256sum -c helm.sha256 && \
-    tar -xzf /tmp/helm.tar.gz -C /tmp && \
-    install -m 755 /tmp/linux-amd64/helm /usr/local/bin/helm && \
-    rm -rf /tmp/helm* /tmp/linux-amd64 && \
+    ARCH=$(uname -m) && \
+    case "$ARCH" in x86_64) HELM_ARCH=amd64 ;; aarch64) HELM_ARCH=arm64 ;; *) HELM_ARCH=amd64 ;; esac && \
+    HELM_FILE="helm-${HELM_VERSION}-linux-${HELM_ARCH}.tar.gz" && \
+    curl -fsSL "https://get.helm.sh/${HELM_FILE}" -o /tmp/${HELM_FILE} && \
+    curl -fsSL "https://get.helm.sh/${HELM_FILE}.sha256sum" -o /tmp/${HELM_FILE}.sha256sum && \
+    cd /tmp && sha256sum -c ${HELM_FILE}.sha256sum && \
+    tar -xzf /tmp/${HELM_FILE} -C /tmp && \
+    install -m 755 /tmp/linux-${HELM_ARCH}/helm /usr/local/bin/helm && \
+    rm -rf /tmp/helm* /tmp/linux-${HELM_ARCH} && \
     microdnf remove -y tar gzip shadow-utils && \
     microdnf clean all
 

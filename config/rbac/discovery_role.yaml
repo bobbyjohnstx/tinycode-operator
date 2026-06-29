@@ -1,0 +1,24 @@
+# ClusterRole and ClusterRoleBinding granting the operator permission to
+# create per-instance ClusterRoles and ClusterRoleBindings for cross-namespace
+# vLLM service discovery. Required when spec.discovery.namespaces is used.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tinycode-operator-discovery-admin
+rules:
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tinycode-operator-discovery-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tinycode-operator-discovery-admin
+subjects:
+- kind: ServiceAccount
+  name: tinycode-operator-manager
+  namespace: tinycode-operator-system

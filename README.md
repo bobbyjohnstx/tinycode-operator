@@ -85,6 +85,27 @@ Repeat for each namespace where tinycode instances will be deployed. The `admin`
 
 > **Environments where cluster-admin is unavailable:** If your organization restricts cluster-admin access, request that an administrator run steps 1-3 above for your namespace. The operator itself (installed separately by cluster-admin) handles everything else. Alternatively, install via OLM where the subscription handles RBAC automatically — see [docs/olm-bundle.md](docs/olm-bundle.md).
 
+### Cross-Namespace Discovery Setup (Optional)
+
+If your vLLM models run in a different namespace than tinycode (common on RHOAI), the operator needs to create ClusterRoles for cross-namespace service listing. The `hack/install.sh` script handles this automatically via `config/rbac/discovery_role.yaml`.
+
+To enable discovery for a model service:
+
+```bash
+# 1. Annotate the model's predictor service (tells tinycode to probe it)
+oc annotate svc <predictor-service-name> \
+  tinycode.dev/discover=vllm \
+  -n <model-namespace>
+
+# 2. Add discovery.namespaces to your TinycodeInstance CR
+#    spec:
+#      discovery:
+#        namespaces:
+#          - <model-namespace>
+```
+
+Without the annotation, tinycode ignores the service even if the namespace is listed — this prevents probing every service in the cluster.
+
 ## Creating a TinycodeInstance
 
 ### Basic (PVC storage)
