@@ -59,20 +59,38 @@ make push IMAGE_ORG=yourorg IMAGE_TAG=v0.1.0
 make install OPERATOR_IMAGE=quay.io/yourorg/operator:v0.1.0
 ```
 
+## Namespace Preparation (Required)
+
+Before creating a TinycodeInstance, a **cluster-admin** must prepare the target namespace. The operator uses Helm to create Deployments, Services, Routes, PVCs, Roles, and RoleBindings in the target namespace — this requires `admin`-level access (not just `edit`, which cannot create RBAC resources).
+
+```bash
+# 1. Create the target namespace
+oc new-project tinycode-dev
+
+# 2. Grant the operator admin in this namespace (cluster-admin required)
+oc create rolebinding tinycode-operator-admin \
+  --clusterrole=admin \
+  --serviceaccount=tinycode-operator-system:tinycode-operator-manager \
+  -n tinycode-dev
+
+# 3. Create a password secret for the tinycode web UI
+oc create secret generic tinycode-password \
+  --from-literal=TINYCODE_SERVER_PASSWORD=<your-password> \
+  -n tinycode-dev
+```
+
+Repeat for each namespace where tinycode instances will be deployed. The `admin` ClusterRole is namespace-scoped — it does not grant cluster-wide privileges.
+
+> **Why admin and not edit?** The Helm chart creates Roles and RoleBindings for Kubernetes service discovery (finding vLLM endpoints). The `edit` ClusterRole cannot create RBAC resources; `admin` adds `get/create/update/delete` on Roles and RoleBindings.
+
+> **Environments where cluster-admin is unavailable:** If your organization restricts cluster-admin access, request that an administrator run steps 1-3 above for your namespace. The operator itself (installed separately by cluster-admin) handles everything else. Alternatively, install via OLM where the subscription handles RBAC automatically — see [docs/olm-bundle.md](docs/olm-bundle.md).
+
 ## Creating a TinycodeInstance
 
 ### Basic (PVC storage)
 
 ```bash
-# Create namespace
-oc new-project tinycode-dev
-
-# Create password secret
-oc create secret generic tinycode-password \
-  --from-literal=TINYCODE_SERVER_PASSWORD=mysecretpass \
-  -n tinycode-dev
-
-# Apply the CR
+# Apply the CR (namespace must be prepared first — see above)
 oc apply -f config/samples/tinycode_v1alpha1_basic.yaml
 
 # Get the URL
