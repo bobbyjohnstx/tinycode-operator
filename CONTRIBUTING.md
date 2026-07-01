@@ -53,7 +53,7 @@ The operator uses [kopf](https://kopf.readthedocs.io) to watch `TinycodeInstance
 2. Deploy to test cluster: `helm upgrade --install tinycode-operator helm-charts/tinycode-operator --set image.tag=<your-tag>`
 3. Create a test CR:
    ```bash
-   kubectl apply -f config/samples/tinycode_v1_session.yaml
+   kubectl apply -f config/samples/tinycode_v1alpha1_basic.yaml
    ```
 4. Verify reconciliation:
    ```bash

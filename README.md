@@ -214,7 +214,7 @@ All SCCs run as UID 1001 (non-root), GID 0, with `allowPrivilegedContainer: fals
 The `TinycodeInstance` CRD enforces validation patterns for security-sensitive fields:
 
 - **Image Registry Restriction** (`spec.image`): Must be from explicitly allowed registries (defaults to quay.io, ghcr.io). Prevents arbitrary image injection.
-- **Git URL Validation** (`spec.git.url`): Validated to ensure proper URL format. Only `https://` and `git://` schemes allowed; prevents command injection.
+- **Git URL Validation** (`spec.git.url`): Validated to ensure proper URL format. Allowed schemes: `http://`, `https://`, `ssh://`, `git://`. HTTPS recommended for credential safety. Prevents command injection via shell metacharacter blocking.
 - **Git Branch Validation** (`spec.git.branch`): Alphanumeric, `/`, `-`, `.`, and `_` only; prevents shell injection during clone operations.
 - **ClusterRole Allowlist** (`spec.clusterAdmin.clusterRole`): Cannot be `admin`, `cluster-admin`, or any ClusterRole that would escalate privileges. Prevents privilege escalation in cluster-admin mode.
 - **SSRF Prevention** (`spec.vllm[].url`): URL validation prevents internal service discovery attacks. Private IP ranges and localhost are allowed by default but can be restricted via NetworkPolicy.
