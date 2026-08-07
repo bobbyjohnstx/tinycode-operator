@@ -8,7 +8,7 @@ metadata:
   name: my-tinycode-shared
   namespace: tinycode-dev
 spec:
-  image: quay.io/bjohns/tinycode-container:latest
+  image: quay.io/bjohns/tinycode-container:v1.17.0
   replicas: 2
   resources:
     limits:

@@ -2,8 +2,8 @@ apiVersion: v2
 name: tinycode
 description: Helm chart for deploying a TinycodeInstance
 type: application
-version: 0.1.0
-appVersion: "latest"
+version: 0.2.0
+appVersion: "1.17.0"
 maintainers:
   - name: tinycode-operator
 keywords:
