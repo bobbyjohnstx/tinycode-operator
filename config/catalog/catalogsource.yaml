@@ -6,7 +6,7 @@ metadata:
   namespace: openshift-marketplace
 spec:
   sourceType: grpc
-  image: quay.io/tinycode/operator-catalog:v0.1.0
+  image: quay.io/tinycode/operator-catalog:v0.2.0
   displayName: Tinycode Operator Catalog
   publisher: tinycode community
   updateStrategy:
