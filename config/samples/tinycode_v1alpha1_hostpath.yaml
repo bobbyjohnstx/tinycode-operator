@@ -18,7 +18,7 @@ metadata:
   name: hostpath-tinycode
   namespace: tinycode-dev
 spec:
-  image: quay.io/bjohns/tinycode-container:v1.17.0
+  image: quay.io/bjohns/tinycode-container:v1.17.1
   storage:
     hostPath:
       path: /home/developer/projects

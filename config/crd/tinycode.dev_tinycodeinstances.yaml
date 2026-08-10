@@ -50,9 +50,9 @@ spec:
               type: object
               properties:
                 image:
-                  description: Container image for tinycode. Defaults to quay.io/bjohns/tinycode-container:v1.17.0.
+                  description: Container image for tinycode. Defaults to quay.io/bjohns/tinycode-container:v1.17.1.
                   type: string
-                  default: "quay.io/bjohns/tinycode-container:v1.17.0"
+                  default: "quay.io/bjohns/tinycode-container:v1.17.1"
                   pattern: "^(quay\\.io/bjohns/|ghcr\\.io/bjohns/|registry\\.access\\.redhat\\.com/)[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$"
                 replicas:
                   description: Number of tinycode server replicas. Defaults to 1.
