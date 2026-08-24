@@ -1,4 +1,4 @@
-image: quay.io/bjohns/tinycode-container:v1.17.1
+image: quay.io/bjohns/tinycode-container:v1.18.0
 replicas: 1
 
 resources:
