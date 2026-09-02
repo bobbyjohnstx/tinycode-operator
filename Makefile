@@ -1,7 +1,7 @@
 IMAGE_REGISTRY ?= quay.io
 IMAGE_ORG      ?= tinycode
 IMAGE_TAG      ?= latest
-VERSION        ?= 0.2.0
+VERSION        ?= 0.2.1
 OPERATOR_IMAGE ?= $(IMAGE_REGISTRY)/$(IMAGE_ORG)/operator:$(IMAGE_TAG)
 BUNDLE_IMAGE   ?= $(IMAGE_REGISTRY)/$(IMAGE_ORG)/operator-bundle:v$(VERSION)
 CATALOG_IMAGE  ?= $(IMAGE_REGISTRY)/$(IMAGE_ORG)/operator-catalog:v$(VERSION)
