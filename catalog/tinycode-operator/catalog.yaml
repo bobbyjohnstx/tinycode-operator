@@ -7,12 +7,12 @@ schema: olm.channel
 name: alpha
 package: tinycode-operator
 entries:
-  - name: tinycode-operator.v0.2.0
+  - name: tinycode-operator.v0.2.1
 ---
 schema: olm.bundle
-name: tinycode-operator.v0.2.0
+name: tinycode-operator.v0.2.1
 package: tinycode-operator
-image: quay.io/tinycode/operator-bundle:v0.2.0
+image: quay.io/tinycode/operator-bundle:v0.2.1
 properties:
   - type: olm.gvk
     value:
@@ -22,19 +22,19 @@ properties:
   - type: olm.package
     value:
       packageName: tinycode-operator
-      version: 0.2.0
+      version: 0.2.1
   - type: olm.bundle.object
     value:
       data: |
         apiVersion: operators.coreos.com/v1alpha1
         kind: ClusterServiceVersion
         metadata:
-          name: tinycode-operator.v0.2.0
+          name: tinycode-operator.v0.2.1
   - type: olm.csv.metadata
     value:
       displayName: Tinycode Operator
       description: Deploys and manages tinycode AI coding assistant instances on OpenShift
-      version: 0.2.0
+      version: 0.2.1
       minKubeVersion: 1.25.0
       provider:
         name: tinycode community

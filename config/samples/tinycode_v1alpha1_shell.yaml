@@ -19,7 +19,7 @@ metadata:
   name: shell-tinycode
   namespace: tinycode-dev
 spec:
-  image: quay.io/bjohns/tinycode-container:v1.19.0
+  image: quay.io/bjohns/tinycode-container:v1.20.0
   shell:
     enabled: true
   storage:
