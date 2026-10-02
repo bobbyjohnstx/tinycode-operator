@@ -11,7 +11,7 @@ metadata:
           "kind": "TinycodeInstance",
           "metadata": {"name": "my-tinycode", "namespace": "tinycode-dev"},
           "spec": {
-            "image": "quay.io/bjohns/tinycode-container:v1.20.0",
+            "image": "ghcr.io/bobbyjohnstx/tinycode-container:v2.0.2",
             "storage": {"dataSize": "1Gi", "projectsSize": "10Gi"},
             "auth": {"passwordSecret": "tinycode-password"}
           }

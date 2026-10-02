@@ -56,7 +56,7 @@
 
 ## GitOps Mode (#6) - 2026-06-25
 
-- [ ] **Init container image** — Plan assumes tinycode container image includes git (entrypoint.sh uses it). Verify with `docker run --rm quay.io/bjohns/tinycode-container:latest which git`. If not present, a dedicated UBI-based git image is needed.
+- [ ] **Init container image** — Plan assumes tinycode container image includes git (entrypoint.sh uses it). Verify with `docker run --rm ghcr.io/bobbyjohnstx/tinycode-container:latest which git`. If not present, a dedicated UBI-based git image is needed.
 - [ ] **RBAC gap: SCC patching** — `operator/main.py:190` calls `scc_api.patch()` but `config/rbac/scc_role.yaml` only grants `get/list/watch/use`, not `patch`. This is a pre-existing issue that both #6 and #7 depend on. Verify if SCC binding currently works in production. If broken, fix before adding init container SCC requirements.
 - [ ] **Git credential rotation** — If `credentialsSecret` is updated (token rotation), existing pods do not pick up new credentials until restart. Consider extending the annotation checksum pattern to trigger rolling restarts on secret change.
 

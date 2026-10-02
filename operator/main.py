@@ -212,7 +212,7 @@ def helm_values_for_spec(name: str, namespace: str, spec: dict) -> dict:
     values: dict[str, Any] = {
         "instanceName": name,
         "instanceNamespace": namespace,
-        "image": spec.get("image", "quay.io/bjohns/tinycode-container:latest"),
+        "image": spec.get("image", "ghcr.io/bobbyjohnstx/tinycode-container:latest"),
         "replicas": spec.get("replicas", 1),
         "resources": spec.get("resources", {
             "limits": {"cpu": "2", "memory": "2Gi"},

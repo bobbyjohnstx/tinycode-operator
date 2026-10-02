@@ -319,7 +319,7 @@ spec:
   repositoryDigestMirrors:
     - mirrors:
         - image-registry.openshift-image-registry.svc:5000/tinycode-system
-      source: quay.io/bjohns/tinycode-container
+      source: ghcr.io/bobbyjohnstx/tinycode-container
 ```
 
 ## Cleanup
