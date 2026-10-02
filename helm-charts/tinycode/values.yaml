@@ -1,4 +1,4 @@
-image: ghcr.io/bobbyjohnstx/tinycode-container:v2.0.2
+image: ghcr.io/bobbyjohnstx/tinycode-container:v2.1.0
 replicas: 1
 
 resources:

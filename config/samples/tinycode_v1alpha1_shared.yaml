@@ -8,7 +8,7 @@ metadata:
   name: my-tinycode-shared
   namespace: tinycode-dev
 spec:
-  image: ghcr.io/bobbyjohnstx/tinycode-container:v2.0.2
+  image: ghcr.io/bobbyjohnstx/tinycode-container:v2.1.0
   replicas: 2
   resources:
     limits:
