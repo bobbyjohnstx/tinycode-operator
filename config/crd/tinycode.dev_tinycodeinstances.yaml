@@ -53,7 +53,7 @@ spec:
                   description: Container image for tinycode. Defaults to ghcr.io/bobbyjohnstx/tinycode-container:v2.0.2.
                   type: string
                   default: "ghcr.io/bobbyjohnstx/tinycode-container:v2.0.2"
-                  pattern: "^(ghcr\\.io/bobbyjohnstx/|quay\\.io/bobbyjohnstx/|quay\\.io/bjohns/|registry\\.access\\.redhat\\.com/)[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$"
+                  pattern: "^(ghcr\\.io/bobbyjohnstx/|quay\\.io/bjohns/|registry\\.access\\.redhat\\.com/)[a-zA-Z0-9._/-]+:[a-zA-Z0-9._-]+$"
                 replicas:
                   description: Number of tinycode server replicas. Defaults to 1.
                   type: integer
