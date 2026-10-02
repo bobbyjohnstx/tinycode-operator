@@ -11,7 +11,7 @@ must stay in sync with these values.
 | Registry | `quay.io/bjohns/tinycode-container` |
 | Tags | `:latest`, `:<git-sha>` |
 | Architectures | `linux/amd64`, `linux/arm64` |
-| Base | Red Hat UBI9-minimal |
+| Base | Red Hat UBI9-minimal (Go static binary, no CGO) |
 
 ## Runtime Identity
 
@@ -73,10 +73,6 @@ must stay in sync with these values.
 | `TINYCODE_DISCOVERY_NAMESPACES` | *(none)* | Comma-separated list of namespaces for service discovery (operator-managed) |
 | **Output (Set by Entrypoint)** | | |
 | `TINYCODE_CLUSTER_TYPE` | *(auto-detected)* | Set to `openshift` or `kubernetes` when `TINYCODE_CLUSTER_ADMIN=true` |
-
-## Included Tools
-
-**tmux** (v3.4) is compiled from source and included in the runtime image to support the `/swarm` skill — a supervised multi-worker orchestration tool that creates split-screen sessions for distributed task solving.
 
 ## Startup Behaviour
 
