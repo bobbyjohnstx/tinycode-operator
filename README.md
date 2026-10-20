@@ -486,10 +486,12 @@ tinycode-operator/
 
 ## Ecosystem
 
-| Project | Description | Repository |
-|---------|-------------|------------|
-| [tinycode](https://github.com/bobbyjohnstx/tinycode) | Core AI coding assistant — server, TUI, web UI | `github.com/bobbyjohnstx/tinycode` |
-| [tinycode-container](https://github.com/bobbyjohnstx/tinycode-container) | Container image packaging tinycode + oh-my-tiny | `github.com/bobbyjohnstx/tinycode-container` |
+| Project | Description |
+|---------|-------------|
+| [tinycode](https://github.com/bobbyjohnstx/tinycode) | Core binary — server, TUI, web UI, 23 agents, 32 plugins, 7 skills |
+| [tinycode-container](https://github.com/bobbyjohnstx/tinycode-container) | OCI container image for Kubernetes and OpenShift |
+| [tinycode-operator](https://github.com/bobbyjohnstx/tinycode-operator) | This repo — Kubernetes Operator for OpenShift |
+| [homebrew-tap](https://github.com/bobbyjohnstx/homebrew-tap) | Homebrew formula for macOS/Linux |
 
 ## License
 
